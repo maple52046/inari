@@ -14,10 +14,10 @@ plan manuscripts under `docs/plans/manuscripts/` — especially when the user ru
 
 ## Inputs and Outputs
 
-| | Path |
-| --- | --- |
-| Source manuscripts | `docs/plans/manuscripts/*.md` (every file **except** `README.md`) |
-| Consolidation spec | `docs/plans/manuscripts/README.md` |
+|                     | Path                                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| Source manuscripts  | `docs/plans/manuscripts/*.md` (every file **except** `README.md`)      |
+| Consolidation spec  | `docs/plans/manuscripts/README.md`                                     |
 | Consolidated output | `docs/plans/<yyyyMMDD_HHMM>_<title>.md` (the parent of `manuscripts/`) |
 
 ## Workflow

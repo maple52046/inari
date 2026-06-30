@@ -9,6 +9,7 @@ the parent directory of ./manuscripts
 Your task is to read all AI plan documents in the source directory, extract valuable long-term planning content, and generate a new consolidated markdown plan.
 
 Focus on preserving:
+
 1. planning content
 2. architectural decisions
 3. constraints and rules
@@ -48,6 +49,7 @@ The output markdown should include these sections:
 13. Future Work
 
 After writing the file, report:
+
 - the generated file path
 - the source directory
 - the number of files processed

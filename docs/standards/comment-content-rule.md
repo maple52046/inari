@@ -41,4 +41,4 @@ If you cannot answer these questions, do not add the comment.
 > Note: API documentation comments (the doc-comment system of the project's
 > language, e.g. docstrings / Javadoc / rustdoc / JSDoc) are a contract for
 > callers and are always expected where the language style standard requires
-> them. The bans above target *narration*, not legitimate API documentation.
+> them. The bans above target _narration_, not legitimate API documentation.

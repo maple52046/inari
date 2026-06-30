@@ -17,12 +17,12 @@ Analyse the repository's changes, write a high-quality commit message, and run `
 /git-commit [--auto-add] [--all] [--push] [--date <when>]
 ```
 
-| Option | Required | Description |
-| --- | --- | --- |
-| `--auto-add` | No | Allow the agent to select **relevant** files and `git add` them itself. Without it, **only files already staged by the user are processed**; the agent must not add files on its own. |
-| `--all` | No | Allow the agent to run `git add -A` directly, staging **all** changes in the working tree (modified / added / deleted / untracked) at once before committing. More permissive than `--auto-add` and non-selective; when used together with `--auto-add`, `--all` takes precedence. |
-| `--push` | No | Run `git push` after a successful commit. Without it, **commit only, no push**. |
-| `--date <when>` | No | Set the commit date, with **author date and committer date both set to the same value** (kept consistent). `<when>` uses a git-parseable format, e.g. `'12 hours ago'`, `'2026-06-10 13:00 +0800'`. |
+| Option          | Required | Description                                                                                                                                                                                                                                                                        |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--auto-add`    | No       | Allow the agent to select **relevant** files and `git add` them itself. Without it, **only files already staged by the user are processed**; the agent must not add files on its own.                                                                                              |
+| `--all`         | No       | Allow the agent to run `git add -A` directly, staging **all** changes in the working tree (modified / added / deleted / untracked) at once before committing. More permissive than `--auto-add` and non-selective; when used together with `--auto-add`, `--all` takes precedence. |
+| `--push`        | No       | Run `git push` after a successful commit. Without it, **commit only, no push**.                                                                                                                                                                                                    |
+| `--date <when>` | No       | Set the commit date, with **author date and committer date both set to the same value** (kept consistent). `<when>` uses a git-parseable format, e.g. `'12 hours ago'`, `'2026-06-10 13:00 +0800'`.                                                                                |
 
 ## Workflow
 

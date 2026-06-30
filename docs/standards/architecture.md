@@ -1,12 +1,12 @@
 # Architecture Standard
 
 This project follows **The Clean Architecture** (Robert C. Martin). This
-document adapts its single load-bearing rule - *The Dependency Rule* - to a
+document adapts its single load-bearing rule - _The Dependency Rule_ - to a
 TypeScript codebase. It is self-contained so the project can be used and
 open-sourced independently.
 
-> Source of the underlying principles: Robert C. Martin, *The Clean
-> Architecture*, 2012. <https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html>
+> Source of the underlying principles: Robert C. Martin, _The Clean
+> Architecture_, 2012. <https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html>
 
 ## The Dependency Rule
 
@@ -64,7 +64,7 @@ wiring behind global singletons.
 - Data crossing boundaries is a domain-owned type, never a driver-specific
   structure or a raw record leaking outward.
 - Side-effecting details (which database, which transport, which time source)
-  are *details* and live at the edges.
+  are _details_ and live at the edges.
 
 ## Recommended layout
 

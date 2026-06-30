@@ -14,9 +14,9 @@ and must be listed in the Skill Index below.
 
 ## Skill Index
 
-| Skill | Path | When to Use |
-| --- | --- | --- |
-| Git Commit | `skills/git-commit/SKILL.md` | When the task needs to analyse the repository's changes, draft a Conventional Commits message, and optionally run `git commit` / `git push`. Triggered by `/git-commit`. |
+| Skill                      | Path                                         | When to Use                                                                                                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Git Commit                 | `skills/git-commit/SKILL.md`                 | When the task needs to analyse the repository's changes, draft a Conventional Commits message, and optionally run `git commit` / `git push`. Triggered by `/git-commit`.                                                                                                                                      |
 | Summarize Manuscript Plans | `skills/summarize-manuscript-plans/SKILL.md` | When the task needs to consolidate, summarize, or roll up the AI plan manuscripts under `docs/plans/manuscripts/` into a single long-term plan (following `docs/plans/manuscripts/README.md`) and then delete the original draft manuscripts (never `README.md`). Triggered by `/summarize-manuscript-plans`. |
 
 ## Adding a New Skill
@@ -39,7 +39,7 @@ each skill live once in `skills/<name>/SKILL.md`; that file is the single source
 of truth. Individual `SKILL.md` files MUST NOT restate this convention — it is
 defined here only.
 
-Each IDE adds a thin wrapper that *references* the canonical file instead of
+Each IDE adds a thin wrapper that _references_ the canonical file instead of
 duplicating it:
 
 - **Cursor**: `.cursor/skills/<name>/SKILL.md` carries Cursor frontmatter

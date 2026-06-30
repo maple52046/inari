@@ -19,7 +19,7 @@ machine-readable history and maps cleanly onto SemVer.
   optional scope and an optional `!`, then `:` and a space.
 - **description**: a short summary in the imperative mood, on the same line.
 - **body**: free-form, starting one blank line after the description; explains
-  the *why* and context.
+  the _why_ and context.
 - **footers**: `Token: value` lines (e.g. `Refs: #123`), one per line.
 
 ## Types

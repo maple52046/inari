@@ -23,7 +23,7 @@ read and follow these project standards first:
   a comment must belong to exactly one semantic category (Intent / Rationale /
   Contract / Invariant / Constraint / Risk / Side Effect / Domain Mapping /
   Operational Context) and must not restate code, translate names, or narrate
-  control flow. Conversely, *do* add a comment wherever a non-obvious decision,
+  control flow. Conversely, _do_ add a comment wherever a non-obvious decision,
   constraint, invariant, or risk needs to be recorded so it is not lost. API
   documentation comments are always expected where the style standard requires
   them.
