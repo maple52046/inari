@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, HardDrive, Settings } from "lucide-react";
+import { Database, HardDrive, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "@/components/theme/theme_toggle";
 
 const NAV_ITEMS = [
   { href: "/buckets", label: "Buckets", icon: Database },
+  { href: "/cleanup", label: "Cleanup", icon: Sparkles },
   { href: "/admin/usage", label: "Usage", icon: HardDrive },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
