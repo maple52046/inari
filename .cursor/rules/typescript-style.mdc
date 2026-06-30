@@ -1,0 +1,23 @@
+---
+description: When writing or modifying TypeScript code, follow the project's style and architecture standards.
+globs: **/*.{ts,tsx}
+alwaysApply: false
+---
+
+# TypeScript Style & Architecture
+
+When writing or modifying TypeScript code, follow:
+
+- [`docs/standards/typescript-style.md`](../../docs/standards/typescript-style.md):
+  Use Google TypeScript Style as the baseline: named exports, ES modules, strict
+  types, no `any` without a documented reason, `Error`-based exceptions for
+  exceptional failures, TSDoc/JSDoc on exported APIs, and Prettier/ESLint/tsc as
+  enforcement.
+- [`docs/standards/architecture.md`](../../docs/standards/architecture.md): the
+  Clean Architecture dependency rule - dependencies point inward only; the
+  domain never depends on adapters, drivers, or frameworks; cross-layer work
+  goes through ports implemented in outer layers and wired at the composition
+  root.
+
+Validate with `tsc --noEmit`, `eslint`, `prettier --check .`, and the project's
+test command before committing.
