@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inari
+  namespace: inari
+  labels:
+    app.kubernetes.io/name: inari
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inari
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: inari
+    spec:
+      containers:
+        - name: inari
+          image: ghcr.io/maple52046/inari:20260630-205811
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          # SESSION_SECRET, DEFAULT_S3_ENDPOINT and (optionally)
+          # SERVER_ACTIONS_ALLOWED_ORIGINS come from the Secret.
+          envFrom:
+            - secretRef:
+                name: inari-env
+          env:
+            # Trust the mounted internal CA. Node reads this at startup; the
+            # image also sets NODE_OPTIONS=--use-system-ca, but the distroless
+            # store has no internal CA, so this mounted file is what works.
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/inari-ca/ca.crt
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/inari-ca
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /connect
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /connect
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: ca
+          configMap:
+            name: inari-ca

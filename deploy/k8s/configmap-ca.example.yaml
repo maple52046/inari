@@ -1,0 +1,17 @@
+# Example only. Mounts an internal CA so Node can verify the S3 endpoint's
+# certificate (avoids UNABLE_TO_GET_ISSUER_CERT_LOCALLY). The distroless image
+# only ships public CAs, so an internal/corporate CA must be provided here.
+#
+# In a real cluster, create this from your CA file instead, e.g.:
+#   kubectl -n inari create configmap inari-ca \
+#     --from-file=ca.crt=/usr/local/share/ca-certificates/your-ca.crt
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inari-ca
+  namespace: inari
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    # Replace with your internal CA chain (issuing CA + root CA).
+    -----END CERTIFICATE-----

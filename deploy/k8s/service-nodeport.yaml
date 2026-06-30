@@ -1,0 +1,17 @@
+# Alternative to service.yaml: expose the app on a fixed node port.
+apiVersion: v1
+kind: Service
+metadata:
+  name: inari
+  namespace: inari
+  labels:
+    app.kubernetes.io/name: inari
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: inari
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 32591

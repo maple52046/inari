@@ -4,7 +4,7 @@
  * This is outer-layer glue; only the composition root and adapters read it.
  */
 
-const DEFAULT_ENDPOINT_FALLBACK = "https://amd-afde.top";
+const DEFAULT_ENDPOINT_FALLBACK = "https://s3.example.com";
 const MIN_SECRET_LENGTH = 32;
 
 /**

@@ -23,6 +23,9 @@ const serverActionOrigins = parseOriginList(
 );
 
 const nextConfig: NextConfig = {
+  // Emit a self-contained server bundle so the runtime image can be minimal
+  // (distroless) without node_modules or the Next CLI.
+  output: "standalone",
   reactStrictMode: true,
   serverExternalPackages: ["@aws-sdk/client-s3"],
   ...(allowedDevOrigins ? { allowedDevOrigins } : {}),
