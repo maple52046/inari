@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/theme/theme_provider";
+import { ToastProvider } from "@/components/ui/toast";
 import { isInitialDark, parseTheme, THEME_COOKIE } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -19,7 +20,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className={isInitialDark(preference) ? "dark" : ""}>
       <body className="min-h-screen font-sans antialiased">
-        <ThemeProvider initialPreference={preference}>{children}</ThemeProvider>
+        <ThemeProvider initialPreference={preference}>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
