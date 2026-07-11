@@ -6,24 +6,24 @@ with `save`/`load`.
 
 ## Contents
 
-| File | Purpose |
-| --- | --- |
-| [`namespace.yaml`](namespace.yaml) | `inari` namespace |
-| [`secret.example.yaml`](secret.example.yaml) | Example `inari-env` Secret (env vars) |
+| File                                                     | Purpose                                    |
+| -------------------------------------------------------- | ------------------------------------------ |
+| [`namespace.yaml`](namespace.yaml)                       | `inari` namespace                          |
+| [`secret.example.yaml`](secret.example.yaml)             | Example `inari-env` Secret (env vars)      |
 | [`configmap-ca.example.yaml`](configmap-ca.example.yaml) | Example `inari-ca` ConfigMap (internal CA) |
-| [`deployment.yaml`](deployment.yaml) | Deployment (1 replica) |
-| [`service.yaml`](service.yaml) | `ClusterIP` Service (default) |
-| [`service-nodeport.yaml`](service-nodeport.yaml) | `NodePort` Service (port 32591) |
+| [`deployment.yaml`](deployment.yaml)                     | Deployment (1 replica)                     |
+| [`service.yaml`](service.yaml)                           | `ClusterIP` Service (default)              |
+| [`service-nodeport.yaml`](service-nodeport.yaml)         | `NodePort` Service (port 32591)            |
 
 ## Configuration
 
 The app is configured entirely through the `inari-env` Secret:
 
-| Key | Required | Notes |
-| --- | --- | --- |
-| `SESSION_SECRET` | Yes | >= 32 chars; seals the credential cookie. The app fails fast if missing. |
-| `DEFAULT_S3_ENDPOINT` | No | Pre-filled endpoint on `/connect`. |
-| `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host. |
+| Key                              | Required            | Notes                                                                    |
+| -------------------------------- | ------------------- | ------------------------------------------------------------------------ |
+| `SESSION_SECRET`                 | Yes                 | >= 32 chars; seals the credential cookie. The app fails fast if missing. |
+| `DEFAULT_S3_ENDPOINT`            | No                  | Pre-filled endpoint on `/connect`.                                       |
+| `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host.      |
 
 `ALLOWED_DEV_ORIGINS` is a dev-only setting and is ignored in the production
 image.

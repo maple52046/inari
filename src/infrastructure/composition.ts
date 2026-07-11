@@ -27,6 +27,32 @@ export function createSessionStore(): ConnectionSessionPort {
   return new IronSessionStore();
 }
 
+/** Non-secret connection fields safe to expose to the browser. */
+export interface PublicConnection {
+  endpoint: string;
+  forcePathStyle: boolean;
+  region: string;
+}
+
+/**
+ * Returns the active connection's non-secret fields, or undefined when not
+ * connected. Excludes credentials so callers can safely pass these to client
+ * components (e.g. to build direct download URLs).
+ */
+export async function getPublicConnection(): Promise<
+  PublicConnection | undefined
+> {
+  const connection = await createSessionStore().getConnection();
+  if (!connection) {
+    return undefined;
+  }
+  return {
+    endpoint: connection.endpoint,
+    forcePathStyle: connection.forcePathStyle,
+    region: connection.region,
+  };
+}
+
 /** Returns the provider plugins available to the app (MinIO placeholder). */
 export function getProviderPlugins(): ProviderPlugin[] {
   return [new MinioPlugin()];

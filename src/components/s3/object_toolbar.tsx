@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpDown, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, KeyRound, RefreshCw, Search, Trash2 } from "lucide-react";
 import type { ObjectFilter, SortKey, SortSpec } from "@/lib/object_filtering";
+import type { DownloadMode, PresignExpiry } from "@/lib/download_preference";
+import { EXPIRY_OPTIONS } from "@/lib/download_preference";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { formatSize } from "@/lib/format_size";
 import { parseDateInput } from "@/lib/date";
 
@@ -39,6 +42,10 @@ interface ObjectToolbarProps {
   selectedSize: number;
   onDelete: () => void;
   onRefresh: () => void;
+  downloadMode: DownloadMode;
+  onDownloadModeChange: (mode: DownloadMode) => void;
+  expiry: PresignExpiry;
+  onExpiryChange: (expiry: PresignExpiry) => void;
 }
 
 /** Search, size/date filters, sort controls, and batch-delete trigger. */
@@ -50,6 +57,10 @@ export function ObjectToolbar({
   selectedSize,
   onDelete,
   onRefresh,
+  downloadMode,
+  onDownloadModeChange,
+  expiry,
+  onExpiryChange,
 }: ObjectToolbarProps) {
   const [search, setSearch] = useState("");
   const [minValue, setMinValue] = useState("");
@@ -199,6 +210,52 @@ export function ObjectToolbar({
             aria-label="Modified before"
           />
         </FilterGroup>
+      </div>
+
+      <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
+        <div className="flex items-center gap-2">
+          <KeyRound className="text-muted-foreground h-4 w-4" />
+          <label htmlFor="presigned-switch" className="font-medium">
+            Presigned URL
+          </label>
+          <Switch
+            id="presigned-switch"
+            checked={downloadMode === "presigned"}
+            onCheckedChange={(checked) =>
+              onDownloadModeChange(checked ? "presigned" : "direct")
+            }
+            aria-label="Use presigned download URLs"
+          />
+        </div>
+
+        {downloadMode === "presigned" ? (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="expiry-select"
+              className="text-muted-foreground text-xs"
+            >
+              Expires in
+            </label>
+            <select
+              id="expiry-select"
+              value={expiry}
+              onChange={(event) =>
+                onExpiryChange(Number(event.target.value) as PresignExpiry)
+              }
+              className={selectClass}
+            >
+              {EXPIRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            Direct links require the object to allow anonymous read access.
+          </p>
+        )}
       </div>
 
       {selectedCount > 0 ? (

@@ -12,6 +12,15 @@ import type {
 } from "@/domain/s3/models";
 import type { ObjectFilter, SortSpec } from "@/lib/object_filtering";
 import { filterObjects, sortObjects } from "@/lib/object_filtering";
+import type {
+  DownloadMode,
+  DownloadPreference,
+  PresignExpiry,
+} from "@/lib/download_preference";
+import {
+  DOWNLOAD_COOKIE,
+  serializeDownloadPreference,
+} from "@/lib/download_preference";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
@@ -22,6 +31,7 @@ import { ObjectTable } from "./object_table";
 import { ObjectCardList } from "./object_card_list";
 import { ObjectDetailDrawer } from "./object_detail_drawer";
 import { DeleteDialog } from "./delete_dialog";
+import { DownloadLinkProvider } from "./download_link_context";
 import { loadObjectsAction } from "@/app/(app)/buckets/[bucket]/actions";
 
 function mergePrefixes(
@@ -44,10 +54,16 @@ export function ObjectBrowser({
   bucket,
   prefix,
   initialPage,
+  endpoint,
+  forcePathStyle,
+  initialDownloadPreference,
 }: {
   bucket: string;
   prefix: string;
   initialPage: ObjectListPage;
+  endpoint: string;
+  forcePathStyle: boolean;
+  initialDownloadPreference: DownloadPreference;
 }) {
   const router = useRouter();
 
@@ -71,6 +87,32 @@ export function ObjectBrowser({
   const [detail, setDetail] = useState<ObjectSummary | undefined>();
   const [deleteTargets, setDeleteTargets] = useState<ObjectSummary[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const [downloadMode, setDownloadMode] = useState<DownloadMode>(
+    initialDownloadPreference.mode,
+  );
+  const [expiry, setExpiry] = useState<PresignExpiry>(
+    initialDownloadPreference.expiry,
+  );
+
+  const persistDownloadPreference = useCallback(
+    (mode: DownloadMode, nextExpiry: PresignExpiry): void => {
+      const maxAge = 60 * 60 * 24 * 365;
+      const value = serializeDownloadPreference({ mode, expiry: nextExpiry });
+      document.cookie = `${DOWNLOAD_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax`;
+    },
+    [],
+  );
+
+  function changeDownloadMode(mode: DownloadMode): void {
+    setDownloadMode(mode);
+    persistDownloadPreference(mode, expiry);
+  }
+
+  function changeExpiry(nextExpiry: PresignExpiry): void {
+    setExpiry(nextExpiry);
+    persistDownloadPreference(downloadMode, nextExpiry);
+  }
 
   const visible = useMemo(
     () => sortObjects(filterObjects(objects, filter), sort),
@@ -164,100 +206,116 @@ export function ObjectBrowser({
   }
 
   const isEmpty = visible.length === 0 && prefixes.length === 0;
+  const visibleKeys = useMemo(
+    () => visible.map((object) => object.key),
+    [visible],
+  );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
-        <Link
-          href={`/admin/usage?bucket=${encodeURIComponent(bucket)}`}
-          className="border-border hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm"
-        >
-          <HardDrive className="h-4 w-4" />
-          Scan usage
-        </Link>
-      </div>
-
-      <ObjectToolbar
-        sort={sort}
-        onSortChange={setSort}
-        onFilterChange={handleFilterChange}
-        selectedCount={selected.size}
-        selectedSize={selectedSize}
-        onDelete={openDeleteSelected}
-        onRefresh={() => router.refresh()}
-      />
-
-      {isEmpty ? (
-        <EmptyState
-          icon={FileQuestion}
-          title="No objects here"
-          description="This prefix has no objects, or none match your filters."
-        />
-      ) : (
-        <>
-          <div className="hidden md:block">
-            <ObjectTable
-              bucket={bucket}
-              prefixes={prefixes}
-              objects={visible}
-              selected={selected}
-              allSelected={allSelected}
-              onToggle={toggle}
-              onToggleAll={toggleAll}
-              onOpenDetail={setDetail}
-              onDeleteOne={openDeleteOne}
-            />
-          </div>
-          <div className="md:hidden">
-            <ObjectCardList
-              bucket={bucket}
-              prefixes={prefixes}
-              objects={visible}
-              selected={selected}
-              onToggle={toggle}
-              onOpenDetail={setDetail}
-              onDeleteOne={openDeleteOne}
-            />
-          </div>
-        </>
-      )}
-
-      {loadError ? <Alert variant="error">{loadError}</Alert> : null}
-
-      <div className="text-muted-foreground flex items-center justify-between text-sm">
-        <span>
-          {visible.length} of {objects.length} loaded object
-          {objects.length === 1 ? "" : "s"} shown
-        </span>
-        {token ? (
-          <Button
-            variant="subtle"
-            size="sm"
-            onClick={loadMore}
-            disabled={loadingMore}
+    <DownloadLinkProvider
+      mode={downloadMode}
+      expiry={expiry}
+      endpoint={endpoint}
+      forcePathStyle={forcePathStyle}
+      bucket={bucket}
+      visibleKeys={visibleKeys}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
+          <Link
+            href={`/admin/usage?bucket=${encodeURIComponent(bucket)}`}
+            className="border-border hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm"
           >
-            {loadingMore ? <Spinner /> : <ChevronDown className="h-4 w-4" />}
-            Load more
-          </Button>
-        ) : null}
-      </div>
+            <HardDrive className="h-4 w-4" />
+            Scan usage
+          </Link>
+        </div>
 
-      {detail ? (
-        <ObjectDetailDrawer
-          bucket={bucket}
-          object={detail}
-          onClose={() => setDetail(undefined)}
+        <ObjectToolbar
+          sort={sort}
+          onSortChange={setSort}
+          onFilterChange={handleFilterChange}
+          selectedCount={selected.size}
+          selectedSize={selectedSize}
+          onDelete={openDeleteSelected}
+          onRefresh={() => router.refresh()}
+          downloadMode={downloadMode}
+          onDownloadModeChange={changeDownloadMode}
+          expiry={expiry}
+          onExpiryChange={changeExpiry}
         />
-      ) : null}
 
-      <DeleteDialog
-        open={deleteOpen}
-        bucket={bucket}
-        targets={deleteTargets}
-        onClose={() => setDeleteOpen(false)}
-        onDeleted={onDeleted}
-      />
-    </div>
+        {isEmpty ? (
+          <EmptyState
+            icon={FileQuestion}
+            title="No objects here"
+            description="This prefix has no objects, or none match your filters."
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <ObjectTable
+                bucket={bucket}
+                prefixes={prefixes}
+                objects={visible}
+                selected={selected}
+                allSelected={allSelected}
+                onToggle={toggle}
+                onToggleAll={toggleAll}
+                onOpenDetail={setDetail}
+                onDeleteOne={openDeleteOne}
+              />
+            </div>
+            <div className="md:hidden">
+              <ObjectCardList
+                bucket={bucket}
+                prefixes={prefixes}
+                objects={visible}
+                selected={selected}
+                onToggle={toggle}
+                onOpenDetail={setDetail}
+                onDeleteOne={openDeleteOne}
+              />
+            </div>
+          </>
+        )}
+
+        {loadError ? <Alert variant="error">{loadError}</Alert> : null}
+
+        <div className="text-muted-foreground flex items-center justify-between text-sm">
+          <span>
+            {visible.length} of {objects.length} loaded object
+            {objects.length === 1 ? "" : "s"} shown
+          </span>
+          {token ? (
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? <Spinner /> : <ChevronDown className="h-4 w-4" />}
+              Load more
+            </Button>
+          ) : null}
+        </div>
+
+        {detail ? (
+          <ObjectDetailDrawer
+            object={detail}
+            onClose={() => setDetail(undefined)}
+          />
+        ) : null}
+
+        <DeleteDialog
+          open={deleteOpen}
+          bucket={bucket}
+          targets={deleteTargets}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={onDeleted}
+        />
+      </div>
+    </DownloadLinkProvider>
   );
 }

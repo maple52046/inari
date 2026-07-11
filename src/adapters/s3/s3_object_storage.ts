@@ -22,8 +22,8 @@ import type { S3Connection } from "@/domain/s3/models";
 /** Maximum keys per S3 `DeleteObjects` request. */
 const DELETE_BATCH_LIMIT = 1000;
 const DEFAULT_DELIMITER = "/";
-/** Lifetime of presigned download URLs, in seconds. */
-const DOWNLOAD_URL_TTL = 300;
+/** Default lifetime of presigned download URLs, in seconds (one hour). */
+const DOWNLOAD_URL_TTL = 3600;
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -147,12 +147,16 @@ export class S3ObjectStorage implements ObjectStoragePort {
     return result;
   }
 
-  async getDownloadUrl(bucket: string, key: string): Promise<string> {
+  async getDownloadUrl(
+    bucket: string,
+    key: string,
+    expiresIn: number = DOWNLOAD_URL_TTL,
+  ): Promise<string> {
     try {
       return await getSignedUrl(
         this.client,
         new GetObjectCommand({ Bucket: bucket, Key: key }),
-        { expiresIn: DOWNLOAD_URL_TTL },
+        { expiresIn },
       );
     } catch (error) {
       throw toStorageError(error);

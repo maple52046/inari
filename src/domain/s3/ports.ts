@@ -32,8 +32,16 @@ export interface ObjectStoragePort {
   listObjects(input: ListObjectsInput): Promise<ObjectListPage>;
   /** Deletes the given keys, chunking internally to respect API limits. */
   deleteObjects(bucket: string, keys: string[]): Promise<DeleteResult>;
-  /** Returns a short-lived presigned URL to download a single object. */
-  getDownloadUrl(bucket: string, key: string): Promise<string>;
+  /**
+   * Returns a presigned URL to download a single object.
+   *
+   * @param expiresIn - URL lifetime in seconds; defaults to one hour.
+   */
+  getDownloadUrl(
+    bucket: string,
+    key: string,
+    expiresIn?: number,
+  ): Promise<string>;
 }
 
 /**

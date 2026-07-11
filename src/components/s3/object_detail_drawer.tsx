@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { Download, X } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Link as LinkIcon,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import type { ObjectSummary } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
 import { Spinner } from "@/components/ui/spinner";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
-import { downloadUrlAction } from "@/app/(app)/buckets/[bucket]/actions";
+import { useDownloadLinks } from "./download_link_context";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -19,34 +25,111 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Right-hand drawer showing full metadata for one object. */
+/** Download section: link type, full URL, and copy/open/regenerate actions. */
+function DownloadSection({ objectKey }: { objectKey: string }) {
+  const { linkFor, copy, open, regenerate, expiry } = useDownloadLinks();
+  const link = linkFor(objectKey);
+  const isPresigned = link.mode === "presigned";
+  const generatedAt =
+    link.expiresAt !== undefined ? link.expiresAt - expiry * 1000 : undefined;
+
+  return (
+    <div className="border-border space-y-2 border-t pt-4">
+      <div className="flex items-center gap-2">
+        {isPresigned ? (
+          <KeyRound className="text-primary h-4 w-4" />
+        ) : (
+          <LinkIcon className="text-primary h-4 w-4" />
+        )}
+        <p className="text-sm font-medium">Download</p>
+        <span className="text-muted-foreground text-xs">
+          {isPresigned ? "Presigned" : "Direct"}
+        </span>
+      </div>
+
+      {link.status === "loading" ? (
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Spinner /> Generating link…
+        </p>
+      ) : link.status === "error" ? (
+        <p className="text-destructive text-sm">
+          {link.message ?? "Failed to prepare download link"}
+        </p>
+      ) : (
+        <p
+          className="bg-muted rounded-md p-2 font-mono text-xs break-all"
+          title={link.url}
+        >
+          {link.url}
+        </p>
+      )}
+
+      {isPresigned && link.status === "ready" ? (
+        <div className="text-muted-foreground grid grid-cols-2 gap-2 text-xs">
+          <Field
+            label="Generated"
+            value={formatDateTime(
+              generatedAt !== undefined ? new Date(generatedAt) : undefined,
+            )}
+          />
+          <Field
+            label="Expires"
+            value={formatDateTime(
+              link.expiresAt ? new Date(link.expiresAt) : undefined,
+            )}
+          />
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => copy(objectKey)}
+          disabled={link.status !== "ready"}
+        >
+          <Copy className="h-4 w-4" />
+          Copy Link
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => open(objectKey)}
+          disabled={link.status !== "ready"}
+        >
+          <ExternalLink className="h-4 w-4" />
+          Open Link
+        </Button>
+        {isPresigned ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => regenerate(objectKey)}
+            disabled={link.status === "loading"}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Regenerate
+          </Button>
+        ) : null}
+      </div>
+
+      {!isPresigned ? (
+        <p className="text-muted-foreground text-xs">
+          Direct links require the object to allow anonymous read access.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Right-hand drawer showing full metadata and download links for one object. */
 export function ObjectDetailDrawer({
-  bucket,
   object,
   onClose,
 }: {
-  bucket: string;
   object: ObjectSummary | undefined;
   onClose: () => void;
 }) {
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | undefined>();
-
-  async function download(): Promise<void> {
-    if (!object) {
-      return;
-    }
-    setDownloading(true);
-    setError(undefined);
-    const result = await downloadUrlAction({ bucket, key: object.key });
-    setDownloading(false);
-    if (result.ok) {
-      window.open(result.url, "_blank", "noopener,noreferrer");
-    } else {
-      setError(result.message);
-    }
-  }
-
   if (!object) {
     return null;
   }
@@ -79,13 +162,9 @@ export function ObjectDetailDrawer({
           <Field label="Storage Class" value={object.storageClass} />
         ) : null}
         {object.etag ? <Field label="ETag" value={object.etag} /> : null}
-        {error ? <p className="text-destructive text-sm">{error}</p> : null}
+        <DownloadSection objectKey={object.key} />
       </div>
       <div className="border-border flex gap-2 border-t px-4 py-3">
-        <Button onClick={download} disabled={downloading}>
-          {downloading ? <Spinner /> : <Download className="h-4 w-4" />}
-          Download
-        </Button>
         <CopyButton value={object.key} label="Copy key" variant="outline" />
       </div>
     </div>

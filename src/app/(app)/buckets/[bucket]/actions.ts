@@ -17,12 +17,25 @@ export type DeleteObjectsActionResult =
 
 /** Discriminated result returned when requesting a download URL. */
 export type DownloadUrlResult =
-  { ok: true; url: string } | { ok: false; message: string };
+  { ok: true; url: string; expiresAt: number } | { ok: false; message: string };
+
+/** Per-key outcome of a batch presign request. */
+export type PresignedUrlEntry =
+  | { key: string; ok: true; url: string; expiresAt: number }
+  | { key: string; ok: false; message: string };
 
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof StorageError
     ? storageErrorMessage(error.kind)
     : fallback;
+}
+
+/** Default presigned lifetime in seconds, mirroring the adapter default. */
+const DEFAULT_EXPIRES_IN = 3600;
+
+/** Computes the absolute expiry (epoch ms) for a presigned URL. */
+function expiresAtFrom(expiresIn: number | undefined): number {
+  return Date.now() + (expiresIn ?? DEFAULT_EXPIRES_IN) * 1000;
 }
 
 /** Loads one page of objects/prefixes for client-driven pagination. */
@@ -71,15 +84,61 @@ export async function deleteObjectsAction(input: {
 export async function downloadUrlAction(input: {
   bucket: string;
   key: string;
+  expiresIn?: number;
 }): Promise<DownloadUrlResult> {
   try {
     const storage = await requireStorage();
-    const url = await getDownloadUrl(storage, input.bucket, input.key);
-    return { ok: true, url };
+    const url = await getDownloadUrl(
+      storage,
+      input.bucket,
+      input.key,
+      input.expiresIn,
+    );
+    return { ok: true, url, expiresAt: expiresAtFrom(input.expiresIn) };
   } catch (error) {
     return {
       ok: false,
       message: messageFor(error, "Failed to prepare download"),
     };
   }
+}
+
+/**
+ * Presigns download URLs for several keys in one round trip.
+ *
+ * Uses `Promise.allSettled` so one failing key never fails the whole batch;
+ * callers get a per-key result. Intended for the objects currently visible in
+ * the browser, not an entire bucket.
+ */
+export async function createPresignedUrlsAction(input: {
+  bucket: string;
+  keys: string[];
+  expiresIn: number;
+}): Promise<PresignedUrlEntry[]> {
+  let storage: Awaited<ReturnType<typeof requireStorage>>;
+  try {
+    storage = await requireStorage();
+  } catch (error) {
+    const message = messageFor(error, "Failed to prepare downloads");
+    return input.keys.map((key) => ({ key, ok: false, message }));
+  }
+
+  const expiresAt = expiresAtFrom(input.expiresIn);
+  const settled = await Promise.allSettled(
+    input.keys.map((key) =>
+      getDownloadUrl(storage, input.bucket, key, input.expiresIn),
+    ),
+  );
+
+  return settled.map((result, index) => {
+    const key = input.keys[index] ?? "";
+    if (result.status === "fulfilled") {
+      return { key, ok: true, url: result.value, expiresAt };
+    }
+    return {
+      key,
+      ok: false,
+      message: messageFor(result.reason, "Failed to prepare download"),
+    };
+  });
 }

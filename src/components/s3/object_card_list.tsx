@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { truncateMiddle } from "@/lib/truncate";
+import { DownloadLinkActions } from "./download_link_actions";
 
 function prefixHref(bucket: string, prefix: string): string {
   return `/buckets/${encodeURIComponent(bucket)}?prefix=${encodeURIComponent(prefix)}`;
@@ -70,6 +71,9 @@ export function ObjectCardList({
                 {formatDateTime(object.lastModified)}
               </p>
             </button>
+          </div>
+          <div className="border-border mt-2 border-t pt-2">
+            <DownloadLinkActions objectKey={object.key} />
           </div>
           <div className="mt-2 flex justify-end gap-1">
             <CopyButton value={object.key} label="Copy" variant="outline" />

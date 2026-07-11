@@ -8,6 +8,7 @@ import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { truncateMiddle } from "@/lib/truncate";
+import { DownloadLinkActions } from "./download_link_actions";
 
 function prefixHref(bucket: string, prefix: string): string {
   return `/buckets/${encodeURIComponent(bucket)}?prefix=${encodeURIComponent(prefix)}`;
@@ -55,6 +56,7 @@ export function ObjectTable({
             <th className="px-3 py-2 text-right">Size</th>
             <th className="px-3 py-2">Last Modified</th>
             <th className="px-3 py-2">Storage Class</th>
+            <th className="px-3 py-2">Download</th>
             <th className="w-32 px-3 py-2 text-right">Actions</th>
           </tr>
         </thead>
@@ -62,7 +64,7 @@ export function ObjectTable({
           {prefixes.map((entry) => (
             <tr key={entry.prefix} className="border-border border-t">
               <td className="px-3 py-2" />
-              <td className="px-3 py-2" colSpan={5}>
+              <td className="px-3 py-2" colSpan={6}>
                 <Link
                   href={prefixHref(bucket, entry.prefix)}
                   className="hover:text-primary flex items-center gap-2 font-medium"
@@ -110,6 +112,9 @@ export function ObjectTable({
                 </td>
                 <td className="text-muted-foreground px-3 py-2">
                   {object.storageClass ?? "—"}
+                </td>
+                <td className="max-w-[16rem] px-3 py-2">
+                  <DownloadLinkActions objectKey={object.key} />
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">
