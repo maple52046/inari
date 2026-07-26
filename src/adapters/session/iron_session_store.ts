@@ -6,7 +6,10 @@ import type {
   ConnectionSessionPort,
 } from "@/domain/session/ports";
 import type { S3Connection } from "@/domain/s3/models";
-import { getSessionSecret } from "@/infrastructure/config";
+import {
+  getSessionCookieSecure,
+  getSessionSecret,
+} from "@/infrastructure/config";
 
 const COOKIE_NAME = "s3m_session";
 
@@ -23,7 +26,7 @@ function sessionOptions(): SessionOptions {
     cookieName: COOKIE_NAME,
     cookieOptions: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: getSessionCookieSecure(),
       sameSite: "lax",
       path: "/",
     },

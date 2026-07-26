@@ -19,11 +19,19 @@ with `save`/`load`.
 
 The app is configured entirely through the `inari-env` Secret:
 
-| Key                              | Required            | Notes                                                                    |
-| -------------------------------- | ------------------- | ------------------------------------------------------------------------ |
-| `SESSION_SECRET`                 | Yes                 | >= 32 chars; seals the credential cookie. The app fails fast if missing. |
-| `DEFAULT_S3_ENDPOINT`            | No                  | Pre-filled endpoint on `/connect`.                                       |
-| `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host.      |
+| Key                              | Required            | Notes                                                                                                 |
+| -------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                 | Yes                 | >= 32 chars; seals the credential cookie. The app fails fast if missing.                              |
+| `DEFAULT_S3_ENDPOINT`            | No                  | Pre-filled endpoint on `/connect`.                                                                    |
+| `SESSION_COOKIE_SECURE`          | Only for HTTP       | Defaults to `true`. Set to `false` for plaintext HTTP access (NodePort). See the warning under below. |
+| `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host.                                   |
+
+> **Login bounces back to `/connect` over HTTP?** The session cookie is `Secure`
+> by default, and browsers silently drop `Secure` cookies on plaintext HTTP
+> origins (except `localhost`), so every request looks unauthenticated. Either
+> put TLS in front of the app (recommended) or set `SESSION_COOKIE_SECURE=false`
+> in the Secret for HTTP-only access. Note that `false` transmits the sealed S3
+> credentials over plaintext, so only use it on a trusted network.
 
 `ALLOWED_DEV_ORIGINS` is a dev-only setting and is ignored in the production
 image.
@@ -69,9 +77,14 @@ To expose on a fixed node port instead of `ClusterIP`:
 kubectl apply -f service-nodeport.yaml   # nodePort 32591
 ```
 
-Then open `http://<node-host>:32591`. If you reach the app through a reverse
-proxy and Server Actions return 403, add the exact browser origin host to
-`SERVER_ACTIONS_ALLOWED_ORIGINS` in the Secret and restart the pod.
+Then open `http://<node-host>:32591`. Because this is plaintext HTTP, set
+`SESSION_COOKIE_SECURE=false` in the `inari-env` Secret and restart the pod;
+otherwise the `Secure` session cookie is dropped and login bounces back to
+`/connect` (see the warning under [Configuration](#configuration)).
+
+If you reach the app through a reverse proxy and Server Actions return 403, add
+the exact browser origin host to `SERVER_ACTIONS_ALLOWED_ORIGINS` in the Secret
+and restart the pod.
 
 ## Private image (pull secret)
 

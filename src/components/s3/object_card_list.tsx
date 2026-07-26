@@ -5,7 +5,6 @@ import { File, Folder, Trash2 } from "lucide-react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { truncateMiddle } from "@/lib/truncate";
@@ -76,7 +75,6 @@ export function ObjectCardList({
             <DownloadLinkActions objectKey={object.key} />
           </div>
           <div className="mt-2 flex justify-end gap-1">
-            <CopyButton value={object.key} label="Copy" variant="outline" />
             <Button
               variant="ghost"
               size="sm"

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { File, Folder, Trash2 } from "lucide-react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { truncateMiddle } from "@/lib/truncate";
@@ -118,11 +117,6 @@ export function ObjectTable({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">
-                    <CopyButton
-                      value={object.key}
-                      label=""
-                      aria-label="Copy key"
-                    />
                     <Button
                       variant="ghost"
                       size="icon"
