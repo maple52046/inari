@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
+import { CopyButton } from "@/components/ui/copy_button";
 
 interface Crumb {
   label: string;
@@ -21,7 +22,10 @@ function buildCrumbs(bucket: string, prefix: string): Crumb[] {
   return crumbs;
 }
 
-/** Prefix breadcrumb trail; each crumb navigates via the `prefix` query. */
+/**
+ * Prefix breadcrumb trail; each crumb navigates via the `prefix` query, and a
+ * trailing button copies the current location as an `s3://` URI.
+ */
 export function ObjectBreadcrumbs({
   bucket,
   prefix,
@@ -30,6 +34,9 @@ export function ObjectBreadcrumbs({
   prefix: string;
 }) {
   const crumbs = buildCrumbs(bucket, prefix);
+  // Kept unencoded and trailing-slash terminated: this value is meant to be
+  // pasted into a chat or an `aws s3` command, not into a URL.
+  const s3Uri = `s3://${bucket}/${prefix}`;
   return (
     <nav className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
       <Home className="h-4 w-4" />
@@ -48,6 +55,13 @@ export function ObjectBreadcrumbs({
           </span>
         );
       })}
+      <CopyButton
+        value={s3Uri}
+        label=""
+        size="icon"
+        aria-label={`Copy path ${s3Uri}`}
+        title="Copy path"
+      />
     </nav>
   );
 }
