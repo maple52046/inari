@@ -84,6 +84,9 @@ export function ObjectBrowser({
   });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Storage class is rarely the reason someone opens the browser, so the column
+  // starts hidden and the user opts in per visit.
+  const [showStorageClass, setShowStorageClass] = useState(false);
   const [detail, setDetail] = useState<ObjectSummary | undefined>();
   const [deleteTargets, setDeleteTargets] = useState<ObjectSummary[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -235,6 +238,8 @@ export function ObjectBrowser({
           selectedSize={selectedSize}
           onDelete={openDeleteSelected}
           onRefresh={() => router.refresh()}
+          showStorageClass={showStorageClass}
+          onShowStorageClassChange={setShowStorageClass}
           downloadMode={downloadMode}
           onDownloadModeChange={changeDownloadMode}
           expiry={expiry}
@@ -256,6 +261,7 @@ export function ObjectBrowser({
                 objects={visible}
                 selected={selected}
                 allSelected={allSelected}
+                showStorageClass={showStorageClass}
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 onOpenDetail={setDetail}

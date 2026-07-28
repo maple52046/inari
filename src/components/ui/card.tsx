@@ -14,6 +14,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   );
 }
 
+/** Padded title area for a card; pair with {@link CardContent}. */
 export function CardHeader({
   className,
   ...props
@@ -21,6 +22,13 @@ export function CardHeader({
   return <div className={cn("p-5", className)} {...props} />;
 }
 
+/**
+ * Body of a card that already has a {@link CardHeader}.
+ *
+ * Drops its own top padding so the header supplies that gap. A card without a
+ * header must therefore pad the {@link Card} itself instead of using this, since
+ * `cn` only concatenates classes and cannot resolve the `pt-0` conflict.
+ */
 export function CardContent({
   className,
   ...props

@@ -22,20 +22,48 @@ function expiryLabel(expiresAt: number | undefined): string {
 }
 
 /**
+ * Opens an object's download link in a new tab.
+ *
+ * Exported on its own so a row can group this action with its other per-object
+ * actions instead of keeping it beside the URL.
+ */
+export function OpenLinkButton({ objectKey }: { objectKey: string }) {
+  const { linkFor, open } = useDownloadLinks();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => open(objectKey)}
+      disabled={linkFor(objectKey).status === "loading"}
+      aria-label="Open download link"
+      title="Open link"
+    >
+      <ExternalLink className="h-4 w-4" />
+    </Button>
+  );
+}
+
+/**
  * Compact Copy/Open actions for a single object's download link.
  *
  * Shows a truncated URL and, in presigned mode, loading/expiry/error state
  * without letting long URLs affect the surrounding layout. A presigned URL is
  * only signed once the user presses one of these buttons.
+ *
+ * @param showOpen - Set to `false` when the caller renders `OpenLinkButton`
+ * elsewhere, so the same action is not offered twice in one row.
  */
 export function DownloadLinkActions({
   objectKey,
   showUrl = true,
+  showOpen = true,
 }: {
   objectKey: string;
   showUrl?: boolean;
+  showOpen?: boolean;
 }) {
-  const { linkFor, copy, open } = useDownloadLinks();
+  const { linkFor, copy } = useDownloadLinks();
   const link = linkFor(objectKey);
   const disabled = link.status === "loading";
 
@@ -85,16 +113,7 @@ export function DownloadLinkActions({
       >
         <Copy className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => open(objectKey)}
-        disabled={disabled}
-        aria-label="Open download link"
-        title="Open link"
-      >
-        <ExternalLink className="h-4 w-4" />
-      </Button>
+      {showOpen ? <OpenLinkButton objectKey={objectKey} /> : null}
     </div>
   );
 }

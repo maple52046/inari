@@ -23,8 +23,9 @@ function buildCrumbs(bucket: string, prefix: string): Crumb[] {
 }
 
 /**
- * Prefix breadcrumb trail; each crumb navigates via the `prefix` query, and a
- * trailing button copies the current location as an `s3://` URI.
+ * Prefix breadcrumb trail; each crumb navigates via the `prefix` query, the
+ * leading home button returns to the bucket list, and a trailing button copies
+ * the current location as an `s3://` URI.
  */
 export function ObjectBreadcrumbs({
   bucket,
@@ -39,7 +40,16 @@ export function ObjectBreadcrumbs({
   const s3Uri = `s3://${bucket}/${prefix}`;
   return (
     <nav className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-      <Home className="h-4 w-4" />
+      {/* A styled link, not a Button: an interactive element inside an anchor is
+          invalid markup, and this crumb is plain navigation. */}
+      <Link
+        href="/buckets"
+        aria-label="Go to bucket list"
+        title="All buckets"
+        className="hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <Home className="h-4 w-4" />
+      </Link>
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;
         return (

@@ -126,7 +126,13 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
   );
 }
 
-/** Right-hand drawer showing full metadata and download links for one object. */
+/**
+ * Right-hand drawer showing full metadata and download links for one object.
+ *
+ * The fractional width resolves against the viewport because the drawer is
+ * `fixed`; nesting it inside a positioned ancestor would silently change what
+ * the fraction is measured against.
+ */
 export function ObjectDetailDrawer({
   object,
   onClose,
@@ -139,7 +145,7 @@ export function ObjectDetailDrawer({
   }
 
   return (
-    <div className="border-border bg-card fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l shadow-xl">
+    <div className="border-border bg-card fixed inset-y-0 right-0 z-40 flex w-1/2 flex-col border-l shadow-xl md:w-1/3">
       <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <h2 className="font-semibold">Object details</h2>
         <Button

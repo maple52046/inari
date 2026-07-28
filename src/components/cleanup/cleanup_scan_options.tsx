@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { toDateInputValue } from "@/lib/date";
 
 /** Normalized scan options emitted to the planner. */
 export interface CleanupScanOptionsValue {
@@ -17,7 +18,14 @@ const SIZE_UNITS: Record<string, number> = {
   GB: 1024 ** 3,
 };
 
-const DEFAULT_MAX_RESULTS = 1000;
+/** Shared with the planner so both sides start from the same cap. */
+export const DEFAULT_MAX_RESULTS = 30;
+
+const DEFAULT_MIN_SIZE_UNIT = "GB";
+
+const DEFAULT_OLDER_THAN_DAYS = 90;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const selectClass =
   "h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
@@ -30,6 +38,12 @@ function toBytes(value: string, unit: string): number | undefined {
   return Math.round(parsed * (SIZE_UNITS[unit] ?? 1));
 }
 
+function defaultOlderThan(): string {
+  return toDateInputValue(
+    new Date(Date.now() - DEFAULT_OLDER_THAN_DAYS * MS_PER_DAY),
+  );
+}
+
 /** Inputs for minimum size, older-than date, and max results. */
 export function CleanupScanOptions({
   onChange,
@@ -37,8 +51,8 @@ export function CleanupScanOptions({
   onChange: (value: CleanupScanOptionsValue) => void;
 }) {
   const [minValue, setMinValue] = useState("");
-  const [minUnit, setMinUnit] = useState("MB");
-  const [olderThan, setOlderThan] = useState("");
+  const [minUnit, setMinUnit] = useState(DEFAULT_MIN_SIZE_UNIT);
+  const [olderThan, setOlderThan] = useState(defaultOlderThan);
   const [maxResults, setMaxResults] = useState(String(DEFAULT_MAX_RESULTS));
 
   useEffect(() => {

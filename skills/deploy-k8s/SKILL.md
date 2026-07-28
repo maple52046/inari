@@ -21,12 +21,12 @@ is a separate concern — see the `build-image` skill.
 /deploy-k8s [--tag <tag>] [--namespace <ns>] [--first-time] [--restart]
 ```
 
-| Option              | Required | Description                                                                                          |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `--tag <tag>`       | No       | Roll the Deployment to `ghcr.io/maple52046/inari:<tag>` via `kubectl set image`.                      |
-| `--namespace <ns>`  | No       | Target namespace. Default: `inari`.                                                                   |
-| `--first-time`      | No       | Run the initial install (namespace, Secret, CA ConfigMap, Deployment, Service).                       |
-| `--restart`         | No       | `kubectl rollout restart` to pick up Secret/ConfigMap changes without a new image.                    |
+| Option             | Required | Description                                                                        |
+| ------------------ | -------- | ---------------------------------------------------------------------------------- |
+| `--tag <tag>`      | No       | Roll the Deployment to `ghcr.io/maple52046/inari:<tag>` via `kubectl set image`.   |
+| `--namespace <ns>` | No       | Target namespace. Default: `inari`.                                                |
+| `--first-time`     | No       | Run the initial install (namespace, Secret, CA ConfigMap, Deployment, Service).    |
+| `--restart`        | No       | `kubectl rollout restart` to pick up Secret/ConfigMap changes without a new image. |
 
 ## Safety first
 

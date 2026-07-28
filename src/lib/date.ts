@@ -17,7 +17,22 @@ export function formatDateTime(date: Date | undefined): string {
 }
 
 /**
- * Parses a `YYYY-MM-DD` date input into a Date at local midnight.
+ * Formats a date as `YYYY-MM-DD` for a native `<input type="date">`.
+ *
+ * Derived from UTC, not local time: a value produced during server rendering and
+ * again during hydration must match, and the two runtimes can sit in different
+ * timezones. `parseDateInput` reads such a string back as UTC midnight, so the
+ * round trip stays consistent.
+ */
+export function toDateInputValue(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Parses a `YYYY-MM-DD` date input into a Date.
+ *
+ * Date-only strings are interpreted as UTC midnight by the language, so the
+ * result does not shift with the host timezone.
  *
  * @returns The parsed date, or undefined when the input is empty/invalid.
  */

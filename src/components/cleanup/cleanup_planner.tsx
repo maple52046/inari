@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Search, Sparkles, Trash2 } from "lucide-react";
 import type { CleanupCandidate, CleanupPlan } from "@/domain/s3/cleanup";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty_state";
@@ -13,6 +13,7 @@ import { scanCleanupAction } from "@/app/(app)/cleanup/actions";
 import { CleanupScopeSelector } from "./cleanup_scope_selector";
 import {
   CleanupScanOptions,
+  DEFAULT_MAX_RESULTS,
   type CleanupScanOptionsValue,
 } from "./cleanup_scan_options";
 import { CleanupCandidateTable } from "./cleanup_candidate_table";
@@ -28,7 +29,7 @@ function candidateId(candidate: CleanupCandidate): string {
 export function CleanupPlanner({ buckets }: { buckets: string[] }) {
   const [bucket, setBucket] = useState("");
   const [options, setOptions] = useState<CleanupScanOptionsValue>({
-    maxResults: 1000,
+    maxResults: DEFAULT_MAX_RESULTS,
   });
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | undefined>();
@@ -139,20 +140,18 @@ export function CleanupPlanner({ buckets }: { buckets: string[] }) {
 
   return (
     <div className="space-y-5">
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <CleanupScopeSelector
-            buckets={buckets}
-            bucket={bucket}
-            onBucketChange={setBucket}
-            disabled={scanning}
-          />
-          <CleanupScanOptions onChange={handleOptionsChange} />
-          <Button onClick={runScan} disabled={scanning}>
-            {scanning ? <Spinner /> : <Search className="h-4 w-4" />}
-            Scan for cleanup candidates
-          </Button>
-        </CardContent>
+      <Card className="space-y-4 p-4">
+        <CleanupScopeSelector
+          buckets={buckets}
+          bucket={bucket}
+          onBucketChange={setBucket}
+          disabled={scanning}
+        />
+        <CleanupScanOptions onChange={handleOptionsChange} />
+        <Button onClick={runScan} disabled={scanning}>
+          {scanning ? <Spinner /> : <Search className="h-4 w-4" />}
+          Scan for cleanup candidates
+        </Button>
       </Card>
 
       {scanError ? <Alert variant="error">{scanError}</Alert> : null}

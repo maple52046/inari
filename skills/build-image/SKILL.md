@@ -20,13 +20,13 @@ build/push CLI surface). Deployment is a separate concern — see the
 /build-image [--engine docker|nerdctl] [--tag <tag>] [--repo <repo>] [--no-push] [--latest]
 ```
 
-| Option              | Required | Description                                                                                   |
-| ------------------- | -------- | --------------------------------------------------------------------------------------------- |
-| `--engine <name>`   | No       | Force `docker` or `nerdctl`. Default: auto-detect (docker first, then nerdctl).                |
-| `--tag <tag>`       | No       | Image tag. Default: `date +%Y%m%d-%H%M%S`. The tag is also passed as the `VERSION` build-arg.  |
-| `--repo <repo>`     | No       | Image repo. Default: `ghcr.io/maple52046/inari`.                                               |
-| `--no-push`         | No       | Build only; skip the push.                                                                     |
-| `--latest`          | No       | Additionally tag and push `:latest`.                                                           |
+| Option            | Required | Description                                                                                   |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `--engine <name>` | No       | Force `docker` or `nerdctl`. Default: auto-detect (docker first, then nerdctl).               |
+| `--tag <tag>`     | No       | Image tag. Default: `date +%Y%m%d-%H%M%S`. The tag is also passed as the `VERSION` build-arg. |
+| `--repo <repo>`   | No       | Image repo. Default: `ghcr.io/maple52046/inari`.                                              |
+| `--no-push`       | No       | Build only; skip the push.                                                                    |
+| `--latest`        | No       | Additionally tag and push `:latest`.                                                          |
 
 Env overrides: `CONTAINER_ENGINE`, `IMAGE_REPO`.
 

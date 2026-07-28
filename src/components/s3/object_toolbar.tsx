@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpDown, KeyRound, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowUpDown,
+  KeyRound,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import type { ObjectFilter, SortKey, SortSpec } from "@/lib/object_filtering";
 import type { DownloadMode, PresignExpiry } from "@/lib/download_preference";
 import { EXPIRY_OPTIONS } from "@/lib/download_preference";
@@ -42,6 +49,8 @@ interface ObjectToolbarProps {
   selectedSize: number;
   onDelete: () => void;
   onRefresh: () => void;
+  showStorageClass: boolean;
+  onShowStorageClassChange: (show: boolean) => void;
   downloadMode: DownloadMode;
   onDownloadModeChange: (mode: DownloadMode) => void;
   expiry: PresignExpiry;
@@ -57,6 +66,8 @@ export function ObjectToolbar({
   selectedSize,
   onDelete,
   onRefresh,
+  showStorageClass,
+  onShowStorageClassChange,
   downloadMode,
   onDownloadModeChange,
   expiry,
@@ -213,49 +224,64 @@ export function ObjectToolbar({
       </div>
 
       <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-        <div className="flex items-center gap-2">
-          <KeyRound className="text-muted-foreground h-4 w-4" />
-          <label htmlFor="presigned-switch" className="font-medium">
-            Presigned URL
-          </label>
-          <Switch
-            id="presigned-switch"
-            checked={downloadMode === "presigned"}
-            onCheckedChange={(checked) =>
-              onDownloadModeChange(checked ? "presigned" : "direct")
-            }
-            aria-label="Use presigned download URLs"
-          />
-        </div>
-
-        {downloadMode === "presigned" ? (
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="expiry-select"
-              className="text-muted-foreground text-xs"
-            >
-              Expires in
+        {/* Keeping the switch flush right holds its position across modes, so
+            enabling presigned URLs does not shift the control the user just hit. */}
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* Hidden below md: the column it controls only exists in the table
+              view, and the card view never renders a storage class. */}
+          <div className="hidden items-center gap-2 md:flex">
+            <Archive className="text-muted-foreground h-4 w-4" />
+            <label htmlFor="storage-class-switch" className="font-medium">
+              Storage Class
             </label>
-            <select
-              id="expiry-select"
-              value={expiry}
-              onChange={(event) =>
-                onExpiryChange(Number(event.target.value) as PresignExpiry)
-              }
-              className={selectClass}
-            >
-              {EXPIRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Switch
+              id="storage-class-switch"
+              checked={showStorageClass}
+              onCheckedChange={onShowStorageClassChange}
+              aria-label="Show the Storage Class column"
+            />
           </div>
-        ) : (
-          <p className="text-muted-foreground text-xs">
-            Direct links require the object to allow anonymous read access.
-          </p>
-        )}
+
+          {downloadMode === "presigned" ? (
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="expiry-select"
+                className="text-muted-foreground text-xs"
+              >
+                Expires in
+              </label>
+              <select
+                id="expiry-select"
+                value={expiry}
+                onChange={(event) =>
+                  onExpiryChange(Number(event.target.value) as PresignExpiry)
+                }
+                className={selectClass}
+              >
+                {EXPIRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <KeyRound className="text-muted-foreground h-4 w-4" />
+            <label htmlFor="presigned-switch" className="font-medium">
+              Presigned URL
+            </label>
+            <Switch
+              id="presigned-switch"
+              checked={downloadMode === "presigned"}
+              onCheckedChange={(checked) =>
+                onDownloadModeChange(checked ? "presigned" : "direct")
+              }
+              aria-label="Use presigned download URLs"
+            />
+          </div>
+        </div>
       </div>
 
       {selectedCount > 0 ? (

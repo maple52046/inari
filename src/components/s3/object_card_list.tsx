@@ -5,8 +5,10 @@ import { File, Folder, Trash2 } from "lucide-react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
+import { lastPathSegment } from "@/lib/object_path";
 import { truncateMiddle } from "@/lib/truncate";
 import { DownloadLinkActions } from "./download_link_actions";
 
@@ -58,6 +60,7 @@ export function ObjectCardList({
               type="button"
               onClick={() => onOpenDetail(object)}
               className="min-w-0 flex-1 text-left"
+              title={object.key}
             >
               <div className="flex items-center gap-2">
                 <File className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -70,6 +73,13 @@ export function ObjectCardList({
                 {formatDateTime(object.lastModified)}
               </p>
             </button>
+            <CopyButton
+              value={lastPathSegment(object.key)}
+              label=""
+              size="icon"
+              aria-label={`Copy filename of ${object.name}`}
+              title="Copy filename"
+            />
           </div>
           <div className="border-border mt-2 border-t pt-2">
             <DownloadLinkActions objectKey={object.key} />
