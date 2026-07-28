@@ -19,11 +19,6 @@ export type DeleteObjectsActionResult =
 export type DownloadUrlResult =
   { ok: true; url: string; expiresAt: number } | { ok: false; message: string };
 
-/** Per-key outcome of a batch presign request. */
-export type PresignedUrlEntry =
-  | { key: string; ok: true; url: string; expiresAt: number }
-  | { key: string; ok: false; message: string };
-
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof StorageError
     ? storageErrorMessage(error.kind)
@@ -101,44 +96,4 @@ export async function downloadUrlAction(input: {
       message: messageFor(error, "Failed to prepare download"),
     };
   }
-}
-
-/**
- * Presigns download URLs for several keys in one round trip.
- *
- * Uses `Promise.allSettled` so one failing key never fails the whole batch;
- * callers get a per-key result. Intended for the objects currently visible in
- * the browser, not an entire bucket.
- */
-export async function createPresignedUrlsAction(input: {
-  bucket: string;
-  keys: string[];
-  expiresIn: number;
-}): Promise<PresignedUrlEntry[]> {
-  let storage: Awaited<ReturnType<typeof requireStorage>>;
-  try {
-    storage = await requireStorage();
-  } catch (error) {
-    const message = messageFor(error, "Failed to prepare downloads");
-    return input.keys.map((key) => ({ key, ok: false, message }));
-  }
-
-  const expiresAt = expiresAtFrom(input.expiresIn);
-  const settled = await Promise.allSettled(
-    input.keys.map((key) =>
-      getDownloadUrl(storage, input.bucket, key, input.expiresIn),
-    ),
-  );
-
-  return settled.map((result, index) => {
-    const key = input.keys[index] ?? "";
-    if (result.status === "fulfilled") {
-      return { key, ok: true, url: result.value, expiresAt };
-    }
-    return {
-      key,
-      ok: false,
-      message: messageFor(result.reason, "Failed to prepare download"),
-    };
-  });
 }

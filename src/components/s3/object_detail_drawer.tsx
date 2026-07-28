@@ -55,6 +55,10 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
         <p className="text-destructive text-sm">
           {link.message ?? "Failed to prepare download link"}
         </p>
+      ) : link.status === "idle" ? (
+        <p className="text-muted-foreground text-sm">
+          No link yet. Copy, open, or generate one when you need it.
+        </p>
       ) : (
         <p
           className="bg-muted rounded-md p-2 font-mono text-xs break-all"
@@ -86,7 +90,7 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
           variant="outline"
           size="sm"
           onClick={() => copy(objectKey)}
-          disabled={link.status !== "ready"}
+          disabled={link.status === "loading"}
         >
           <Copy className="h-4 w-4" />
           Copy Link
@@ -95,7 +99,7 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
           variant="outline"
           size="sm"
           onClick={() => open(objectKey)}
-          disabled={link.status !== "ready"}
+          disabled={link.status === "loading"}
         >
           <ExternalLink className="h-4 w-4" />
           Open Link
@@ -108,7 +112,7 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
             disabled={link.status === "loading"}
           >
             <RefreshCw className="h-4 w-4" />
-            Regenerate
+            {link.status === "idle" ? "Generate" : "Regenerate"}
           </Button>
         ) : null}
       </div>

@@ -14,10 +14,7 @@ import type { DownloadMode, PresignExpiry } from "@/lib/download_preference";
 import { buildDirectUrl } from "@/lib/download_link";
 import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
-import {
-  createPresignedUrlsAction,
-  downloadUrlAction,
-} from "@/app/(app)/buckets/[bucket]/actions";
+import { downloadUrlAction } from "@/app/(app)/buckets/[bucket]/actions";
 
 /** Presigned URL state for a single object key. */
 export interface PresignedState {
@@ -27,11 +24,16 @@ export interface PresignedState {
   message?: string;
 }
 
-/** Normalized link view for a single object, regardless of mode. */
+/**
+ * Normalized link view for a single object, regardless of mode.
+ *
+ * `idle` means presigned mode with nothing signed yet; the URL is only produced
+ * when the user asks for it. Direct links are always `ready`.
+ */
 export interface ObjectDownloadLink {
   mode: DownloadMode;
   url?: string;
-  status: "ready" | "loading" | "error";
+  status: "idle" | "ready" | "loading" | "error";
   expiresAt?: number;
   message?: string;
 }
@@ -39,7 +41,6 @@ export interface ObjectDownloadLink {
 interface DownloadLinkContextValue {
   mode: DownloadMode;
   expiry: PresignExpiry;
-  /** Cap on how many visible keys are auto-presigned per page. */
   linkFor: (key: string) => ObjectDownloadLink;
   regenerate: (key: string) => Promise<void>;
   copy: (key: string) => Promise<void>;
@@ -52,8 +53,6 @@ const DownloadLinkContext = createContext<DownloadLinkContextValue | undefined>(
 
 /** Regenerate a presigned URL when it is within this window of expiry. */
 const EXPIRY_SKEW_MS = 60_000;
-/** Upper bound on visible objects auto-presigned at once. */
-const MAX_AUTO_PRESIGN = 500;
 
 function isFresh(state: PresignedState | undefined): boolean {
   return (
@@ -68,9 +67,9 @@ function isFresh(state: PresignedState | undefined): boolean {
  * Provides download links to the object browser subtree.
  *
  * Direct links are computed synchronously from the connection endpoint.
- * Presigned URLs are generated server-side for the currently visible keys and
- * cached in memory only (never persisted), so they are discarded on navigation
- * or disconnect.
+ * Presigned URLs are signed server-side only when a user asks for a specific
+ * object, and cached in memory only (never persisted), so they are discarded on
+ * navigation or disconnect.
  */
 export function DownloadLinkProvider({
   mode,
@@ -78,7 +77,6 @@ export function DownloadLinkProvider({
   endpoint,
   forcePathStyle,
   bucket,
-  visibleKeys,
   children,
 }: {
   mode: DownloadMode;
@@ -86,14 +84,14 @@ export function DownloadLinkProvider({
   endpoint: string;
   forcePathStyle: boolean;
   bucket: string;
-  visibleKeys: string[];
   children: ReactNode;
 }) {
   const { notify } = useToast();
   const [cache, setCache] = useState<Record<string, PresignedState>>({});
   // Expiry the current cache was signed with; a change invalidates the cache.
   const signedExpiryRef = useRef<PresignExpiry>(expiry);
-  const inFlightRef = useRef<Set<string>>(new Set());
+  // Shared per-key requests, so a double click signs the object only once.
+  const inFlightRef = useRef<Map<string, Promise<PresignedState>>>(new Map());
 
   const directUrlFor = useCallback(
     (key: string): string =>
@@ -101,106 +99,71 @@ export function DownloadLinkProvider({
     [endpoint, forcePathStyle, bucket],
   );
 
-  const generateBatch = useCallback(
-    async (keys: string[]) => {
-      const pending = keys.filter((key) => !inFlightRef.current.has(key));
-      if (pending.length === 0) {
-        return;
-      }
-      for (const key of pending) {
-        inFlightRef.current.add(key);
-      }
-      setCache((current) => {
-        const next = { ...current };
-        for (const key of pending) {
-          next[key] = { status: "loading" };
-        }
-        return next;
-      });
+  // URLs signed with the previous expiry would hand out the wrong lifetime.
+  useEffect(() => {
+    if (signedExpiryRef.current === expiry) {
+      return;
+    }
+    signedExpiryRef.current = expiry;
+    inFlightRef.current.clear();
+    setCache({});
+  }, [expiry]);
 
-      const entries = await createPresignedUrlsAction({
-        bucket,
-        keys: pending,
-        expiresIn: expiry,
-      });
-
-      setCache((current) => {
-        const next = { ...current };
-        for (const entry of entries) {
-          next[entry.key] = entry.ok
-            ? { status: "ready", url: entry.url, expiresAt: entry.expiresAt }
-            : { status: "error", message: entry.message };
+  /** Signs one key unconditionally, reusing an in-flight request for it. */
+  const sign = useCallback(
+    (key: string): Promise<PresignedState> => {
+      const pending = inFlightRef.current.get(key);
+      if (pending) {
+        return pending;
+      }
+      setCache((current) => ({ ...current, [key]: { status: "loading" } }));
+      const request = (async (): Promise<PresignedState> => {
+        let state: PresignedState;
+        try {
+          const result = await downloadUrlAction({
+            bucket,
+            key,
+            expiresIn: expiry,
+          });
+          state = result.ok
+            ? { status: "ready", url: result.url, expiresAt: result.expiresAt }
+            : { status: "error", message: result.message };
+        } catch {
+          // A transport failure rejects instead of resolving to the action's
+          // result type; keep it as link state so a click handler never leaves
+          // an unhandled rejection.
+          state = {
+            status: "error",
+            message: "Failed to prepare download link",
+          };
         }
-        return next;
-      });
-      for (const key of pending) {
         inFlightRef.current.delete(key);
-      }
+        setCache((current) => ({ ...current, [key]: state }));
+        return state;
+      })();
+      inFlightRef.current.set(key, request);
+      return request;
     },
     [bucket, expiry],
   );
 
-  // Auto-presign the visible keys in presigned mode; reset when expiry changes.
-  const visibleKey = visibleKeys.join("\u0000");
-  useEffect(() => {
-    if (mode !== "presigned") {
-      return;
-    }
-    if (signedExpiryRef.current !== expiry) {
-      signedExpiryRef.current = expiry;
-      inFlightRef.current.clear();
-      setCache({});
-    }
-    const keys = visibleKeys.slice(0, MAX_AUTO_PRESIGN);
-    const missing = keys.filter((key) => {
-      const state = cache[key];
-      return !isFresh(state) && !inFlightRef.current.has(key);
-    });
-    if (missing.length > 0) {
-      void generateBatch(missing);
-    }
-    // `cache` is intentionally omitted: it is updated by this effect and reading
-    // it via closure for the freshness check is sufficient.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, expiry, visibleKey, generateBatch]);
-
-  /** Returns a fresh presigned URL for a key, regenerating if needed. */
+  /** Returns a usable presigned URL for a key, signing it if needed. */
   const resolvePresignedUrl = useCallback(
     async (key: string): Promise<PresignedState> => {
       const existing = cache[key];
       if (isFresh(existing) && existing) {
         return existing;
       }
-      const result = await downloadUrlAction({
-        bucket,
-        key,
-        expiresIn: expiry,
-      });
-      const state: PresignedState = result.ok
-        ? { status: "ready", url: result.url, expiresAt: result.expiresAt }
-        : { status: "error", message: result.message };
-      setCache((current) => ({ ...current, [key]: state }));
-      return state;
+      return sign(key);
     },
-    [bucket, expiry, cache],
+    [cache, sign],
   );
 
   const regenerate = useCallback(
     async (key: string): Promise<void> => {
-      setCache((current) => ({ ...current, [key]: { status: "loading" } }));
-      const result = await downloadUrlAction({
-        bucket,
-        key,
-        expiresIn: expiry,
-      });
-      setCache((current) => ({
-        ...current,
-        [key]: result.ok
-          ? { status: "ready", url: result.url, expiresAt: result.expiresAt }
-          : { status: "error", message: result.message },
-      }));
+      await sign(key);
     },
-    [bucket, expiry],
+    [sign],
   );
 
   const resolveUrl = useCallback(
@@ -251,7 +214,7 @@ export function DownloadLinkProvider({
       return {
         mode,
         url: state?.url,
-        status: state?.status ?? "loading",
+        status: state?.status ?? "idle",
         expiresAt: state?.expiresAt,
         message: state?.message,
       };

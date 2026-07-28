@@ -206,10 +206,6 @@ export function ObjectBrowser({
   }
 
   const isEmpty = visible.length === 0 && prefixes.length === 0;
-  const visibleKeys = useMemo(
-    () => visible.map((object) => object.key),
-    [visible],
-  );
 
   return (
     <DownloadLinkProvider
@@ -218,7 +214,6 @@ export function ObjectBrowser({
       endpoint={endpoint}
       forcePathStyle={forcePathStyle}
       bucket={bucket}
-      visibleKeys={visibleKeys}
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

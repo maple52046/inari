@@ -25,7 +25,8 @@ function expiryLabel(expiresAt: number | undefined): string {
  * Compact Copy/Open actions for a single object's download link.
  *
  * Shows a truncated URL and, in presigned mode, loading/expiry/error state
- * without letting long URLs affect the surrounding layout.
+ * without letting long URLs affect the surrounding layout. A presigned URL is
+ * only signed once the user presses one of these buttons.
  */
 export function DownloadLinkActions({
   objectKey,
@@ -36,7 +37,7 @@ export function DownloadLinkActions({
 }) {
   const { linkFor, copy, open } = useDownloadLinks();
   const link = linkFor(objectKey);
-  const disabled = link.status !== "ready";
+  const disabled = link.status === "loading";
 
   return (
     <div className="flex min-w-0 items-center gap-1">
@@ -49,7 +50,9 @@ export function DownloadLinkActions({
             ? "Generating…"
             : link.status === "error"
               ? "Link unavailable"
-              : (link.url ?? "")}
+              : link.status === "idle"
+                ? "—"
+                : (link.url ?? "")}
         </span>
       ) : null}
 
