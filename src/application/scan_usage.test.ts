@@ -47,6 +47,11 @@ describe("scanUsage", () => {
     ]);
   });
 
+  it("names each scope after its bucket", async () => {
+    const summary = await scanUsage(paginatedStorage(), { buckets: ["b"] });
+    expect(summary.scopes[0]?.scope).toBe("b");
+  });
+
   it("aggregates multiple buckets and reports progress", async () => {
     const progress: number[] = [];
     const summary = await scanUsage(

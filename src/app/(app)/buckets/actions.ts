@@ -2,6 +2,7 @@
 
 import { StorageError, storageErrorMessage } from "@/domain/s3/errors";
 import type { UsageScope } from "@/domain/s3/models";
+import { usageScopeLabel } from "@/domain/s3/models";
 import { scanUsage } from "@/application/scan_usage";
 import { requireStorage } from "@/infrastructure/composition";
 
@@ -11,7 +12,7 @@ export type ScanBucketResult =
   | { ok: false; bucket: string; message: string };
 
 /**
- * Scans one bucket and returns its aggregated usage.
+ * Scans one whole bucket and returns its aggregated usage.
  *
  * Scanning bucket-by-bucket from the client lets the UI report incremental
  * progress without a streaming transport.
@@ -23,7 +24,7 @@ export async function scanBucketAction(
     const storage = await requireStorage();
     const summary = await scanUsage(storage, { buckets: [bucket] });
     const scope = summary.scopes[0] ?? {
-      scope: bucket,
+      scope: usageScopeLabel(bucket),
       totalSize: 0,
       objectCount: 0,
     };

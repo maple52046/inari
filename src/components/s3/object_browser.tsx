@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, FileQuestion, HardDrive } from "lucide-react";
-import Link from "next/link";
+import { ChevronDown, FileQuestion } from "lucide-react";
 import { Box, Flex, Icon, Span, Stack } from "@chakra-ui/react";
 import type {
   CommonPrefix,
@@ -27,6 +26,7 @@ import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty_state";
 import { ObjectBreadcrumbs } from "./object_breadcrumbs";
+import { PrefixUsagePanel } from "./prefix_usage_panel";
 import { ObjectToolbar } from "./object_toolbar";
 import { ObjectTable } from "./object_table";
 import { ObjectCardList } from "./object_card_list";
@@ -220,17 +220,9 @@ export function ObjectBrowser({
       bucket={bucket}
     >
       <Stack gap="4">
-        <Flex wrap="wrap" align="center" justify="space-between" gap="3">
-          <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/usage?bucket=${encodeURIComponent(bucket)}`}>
-              <Icon size="sm" asChild>
-                <HardDrive />
-              </Icon>
-              Scan usage
-            </Link>
-          </Button>
-        </Flex>
+        <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
+
+        <PrefixUsagePanel bucket={bucket} prefix={prefix} />
 
         <ObjectToolbar
           sort={sort}

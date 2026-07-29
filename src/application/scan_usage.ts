@@ -1,5 +1,6 @@
 import type { ObjectStoragePort } from "@/domain/s3/ports";
 import type { UsageScope, UsageSummary } from "@/domain/s3/models";
+import { usageScopeLabel } from "@/domain/s3/models";
 
 /** Per-bucket progress emitted during a scan. */
 export interface ScanProgress {
@@ -8,7 +9,13 @@ export interface ScanProgress {
   totalSize: number;
 }
 
-/** Identifies which buckets a usage scan should cover. */
+/**
+ * Identifies which buckets a usage scan should cover.
+ *
+ * Whole buckets only. Measuring a location within one is
+ * {@link "@/application/scan_prefix_usage".scanPrefixUsage}, which also breaks the
+ * result down by what the location contains.
+ */
 export interface ScanUsageInput {
   buckets: string[];
 }
@@ -39,7 +46,7 @@ async function scanBucket(
     continuationToken = page.continuationToken;
     onProgress?.({ bucket, objectCount, totalSize });
   } while (continuationToken);
-  return { scope: bucket, totalSize, objectCount };
+  return { scope: usageScopeLabel(bucket), totalSize, objectCount };
 }
 
 /**

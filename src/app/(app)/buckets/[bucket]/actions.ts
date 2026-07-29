@@ -5,6 +5,8 @@ import type { DeleteResult, ObjectListPage } from "@/domain/s3/models";
 import { listObjects } from "@/application/list_objects";
 import { deleteObjects } from "@/application/delete_objects";
 import { getDownloadUrl } from "@/application/get_download_url";
+import { scanPrefixUsage } from "@/application/scan_prefix_usage";
+import type { PrefixUsage } from "@/application/scan_prefix_usage";
 import { requireStorage } from "@/infrastructure/composition";
 
 /** Discriminated result returned to client components from list loading. */
@@ -18,6 +20,10 @@ export type DeleteObjectsActionResult =
 /** Discriminated result returned when requesting a download URL. */
 export type DownloadUrlResult =
   { ok: true; url: string; expiresAt: number } | { ok: false; message: string };
+
+/** Discriminated result returned from measuring a location's contents. */
+export type PrefixUsageResult =
+  { ok: true; usage: PrefixUsage } | { ok: false; message: string };
 
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof StorageError
@@ -71,6 +77,31 @@ export async function deleteObjectsAction(input: {
     return {
       ok: false,
       message: messageFor(error, "Some objects could not be deleted"),
+    };
+  }
+}
+
+/**
+ * Measures what the given location contains, one entry per immediate child.
+ *
+ * Walks every object beneath the prefix, so it is only ever invoked from an
+ * explicit user action.
+ */
+export async function scanPrefixUsageAction(input: {
+  bucket: string;
+  prefix: string;
+}): Promise<PrefixUsageResult> {
+  try {
+    const storage = await requireStorage();
+    const usage = await scanPrefixUsage(storage, {
+      bucket: input.bucket,
+      prefix: input.prefix,
+    });
+    return { ok: true, usage };
+  } catch (error) {
+    return {
+      ok: false,
+      message: messageFor(error, "Failed to measure this location"),
     };
   }
 }

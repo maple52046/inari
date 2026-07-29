@@ -157,7 +157,7 @@ Design system and brand:
 - **A sticky table header and inner horizontal scroll are mutually exclusive.**
   `overflow-x: auto` also makes the element a vertical scroll container, and with
   no height cap that container is exactly as tall as its content, so `position:
-  sticky` never activates. Full expansion was chosen, so the sticky header was
+sticky` never activates. Full expansion was chosen, so the sticky header was
   dropped rather than left as a dead prop.
 - **`defaultTheme` must stay pinned to dark.** `next-themes` defaults to following
   the OS, which would silently contradict the documented dark-first default.

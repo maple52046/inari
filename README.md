@@ -16,7 +16,9 @@ provider；MinIO 相關能力保留為未來 plugin 擴充。
 - Cleanup Planner (`/cleanup`) 可跨 bucket 掃描候選清理檔案，依
   `lastModified ASC, size DESC, bucket ASC, key ASC` 排序，預估可釋放空間，
   並在確認後依 bucket 分組刪除。
-- Usage dashboard (`/admin/usage`) 以 S3 list scan 估算 bucket/object usage。
+- Bucket 首頁 (`/buckets`) 內建 usage 掃描，以 S3 list scan 估算 bucket/object
+  usage，並以圓餅圖呈現各 bucket 佔比。掃描一律手動觸發，結果存於
+  `sessionStorage`，關閉 tab 即清除。
 - Dark theme 預設，支援 light/system theme。
 - Responsive UI 與 lucide icons。
 

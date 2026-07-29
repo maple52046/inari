@@ -132,6 +132,70 @@ const config = defineConfig({
             },
           },
         },
+        // Amber carrying the warning notice's text, icon and border. The notice
+        // has no fill, so this is the only colour it uses. Set by product
+        // direction rather than derived from a palette, so unlike every other
+        // colour here it is identical in both colour modes.
+        //
+        // Risk: against the page background this measures 10.1:1 in dark mode but
+        // only 1.8:1 in light, below even the 3:1 that WCAG asks of borders.
+        // Making the light value a darker amber such as #9A6408 would reach
+        // 4.9:1 while leaving dark mode untouched.
+        notice: {
+          fg: { value: "#f5b027" },
+        },
+        // Sequential series for charts, drawn from the brand ramp so charts stay
+        // on palette.
+        //
+        // `chart.1` is the step that stands out most against the surface it sits
+        // on, because consumers assign it to the largest value: the darkest step
+        // in light mode, the lightest in dark mode. Running the ramp the other way
+        // makes the biggest slice the faintest one.
+        //
+        // The two modes are mirrors, and both stay in the middle of the ramp
+        // rather than reaching its ends. The extremes were tried and abandoned:
+        // adjacent steps there differ by too little to tell apart, and the
+        // lightest of them reads as a glaring near-white block on a dark surface.
+        chart: {
+          1: {
+            value: {
+              _light: "{colors.brand.700}",
+              _dark: "{colors.brand.300}",
+            },
+          },
+          2: {
+            value: {
+              _light: "{colors.brand.600}",
+              _dark: "{colors.brand.400}",
+            },
+          },
+          3: {
+            value: {
+              _light: "{colors.brand.500}",
+              _dark: "{colors.brand.500}",
+            },
+          },
+          4: {
+            value: {
+              _light: "{colors.brand.400}",
+              _dark: "{colors.brand.600}",
+            },
+          },
+          5: {
+            value: {
+              _light: "{colors.brand.300}",
+              _dark: "{colors.brand.700}",
+            },
+          },
+          // Neutral so an aggregated remainder reads as "not a bucket", and
+          // mirrored across the modes like the series above.
+          other: {
+            value: {
+              _light: "{colors.gray.600}",
+              _dark: "{colors.gray.400}",
+            },
+          },
+        },
         // The two surfaces the gray ramp cannot express: the old `--background`
         // was slightly off-white in light mode and a raised neutral in dark
         // mode, neither of which is a ramp step.

@@ -71,6 +71,18 @@ export interface UsageScope {
 }
 
 /**
+ * Builds the {@link UsageScope.scope} identifier for a bucket, or a prefix in it.
+ *
+ * Lives here beside the field it produces so the scanner and the UI cannot drift
+ * on the format. Prefixes in this app carry their trailing delimiter, so the
+ * result reads as a path; an empty prefix is treated as absent rather than
+ * leaving a stray separator.
+ */
+export function usageScopeLabel(bucket: string, prefix?: string): string {
+  return prefix ? `${bucket}/${prefix}` : bucket;
+}
+
+/**
  * Result of a scan-based usage estimate.
  *
  * Values reflect only objects visible through the S3-compatible list API and

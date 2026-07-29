@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, HardDrive, Settings, Sparkles } from "lucide-react";
+import { Database, Settings, Sparkles } from "lucide-react";
 import { Box, Flex, HStack, Icon } from "@chakra-ui/react";
 import { BrandLockup } from "@/components/brand/brand_lockup";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { ColorModeToggle } from "@/components/theme/color_mode";
 const NAV_ITEMS = [
   { href: "/buckets", label: "Buckets", icon: Database },
   { href: "/cleanup", label: "Cleanup", icon: Sparkles },
-  { href: "/admin/usage", label: "Usage", icon: HardDrive },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
