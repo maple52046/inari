@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, FileQuestion } from "lucide-react";
+import { ChevronDown, FileQuestion, ScanLine } from "lucide-react";
 import { Box, Flex, Icon, Span, Stack } from "@chakra-ui/react";
 import type {
   CommonPrefix,
@@ -26,14 +26,24 @@ import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty_state";
 import { ObjectBreadcrumbs } from "./object_breadcrumbs";
-import { PrefixUsagePanel } from "./prefix_usage_panel";
 import { ObjectToolbar } from "./object_toolbar";
 import { ObjectTable } from "./object_table";
 import { ObjectCardList } from "./object_card_list";
 import { ObjectDetailDrawer } from "./object_detail_drawer";
 import { DeleteDialog } from "./delete_dialog";
 import { DownloadLinkProvider } from "./download_link_context";
-import { loadObjectsAction } from "@/app/(app)/buckets/[bucket]/actions";
+import type {
+  PrefixUsage,
+  PrefixUsageEntry,
+} from "@/application/scan_prefix_usage";
+import {
+  loadObjectsAction,
+  scanPrefixUsageAction,
+} from "@/app/(app)/buckets/[bucket]/actions";
+
+/** What a measured folder size does and does not account for. */
+const MEASURE_HINT =
+  "Adds up the objects listed beneath each folder. Excludes provider-specific overhead, incomplete multipart uploads, object versions, delete markers, and backend internal metadata.";
 
 function mergePrefixes(
   current: CommonPrefix[],
@@ -92,6 +102,11 @@ export function ObjectBrowser({
   const [deleteTargets, setDeleteTargets] = useState<ObjectSummary[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  const [usage, setUsage] = useState<PrefixUsage | undefined>();
+  const [usageScannedAt, setUsageScannedAt] = useState<Date | undefined>();
+  const [usageScanning, setUsageScanning] = useState(false);
+  const [usageError, setUsageError] = useState<string | undefined>();
+
   const [downloadMode, setDownloadMode] = useState<DownloadMode>(
     initialDownloadPreference.mode,
   );
@@ -137,6 +152,37 @@ export function ObjectBrowser({
   const handleFilterChange = useCallback((next: ObjectFilter) => {
     setFilter(next);
   }, []);
+
+  /**
+   * Measures the current location. Only ever called from the panel's button,
+   * because it walks every object beneath the prefix.
+   */
+  async function measureUsage(): Promise<void> {
+    setUsageScanning(true);
+    setUsageError(undefined);
+    const result = await scanPrefixUsageAction({ bucket, prefix });
+    setUsageScanning(false);
+    if (!result.ok) {
+      setUsage(undefined);
+      setUsageError(result.message);
+      return;
+    }
+    setUsage(result.usage);
+    setUsageScannedAt(new Date());
+  }
+
+  // Keyed by full prefix so the listing's folder rows can look themselves up;
+  // the scan reports names relative to the location it measured. Only folders
+  // are taken, since the rows for objects already carry their own size.
+  const folderUsage = useMemo(() => {
+    const byPrefix = new Map<string, PrefixUsageEntry>();
+    for (const entry of usage?.entries ?? []) {
+      if (entry.isPrefix) {
+        byPrefix.set(`${prefix}${entry.name}`, entry);
+      }
+    }
+    return byPrefix;
+  }, [usage, prefix]);
 
   async function loadMore(): Promise<void> {
     if (!token) {
@@ -222,8 +268,6 @@ export function ObjectBrowser({
       <Stack gap="4">
         <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
 
-        <PrefixUsagePanel bucket={bucket} prefix={prefix} />
-
         <ObjectToolbar
           sort={sort}
           onSortChange={setSort}
@@ -248,6 +292,32 @@ export function ObjectBrowser({
           />
         ) : (
           <>
+            {/* The caveat rides on the button rather than a standing paragraph,
+                the way the table's URL column carries its own precondition. It
+                still has to be stated somewhere: a scanned total is an estimate,
+                not an authoritative figure. */}
+            <Flex justify="flex-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={measureUsage}
+                disabled={usageScanning}
+                title={MEASURE_HINT}
+              >
+                {usageScanning ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <Icon size="sm" asChild>
+                    <ScanLine />
+                  </Icon>
+                )}
+                {usageScanning
+                  ? "Measuring…"
+                  : usage
+                    ? "Re-measure folder sizes"
+                    : "Measure folder sizes"}
+              </Button>
+            </Flex>
             <Box display={{ base: "none", md: "block" }}>
               <ObjectTable
                 bucket={bucket}
@@ -256,6 +326,9 @@ export function ObjectBrowser({
                 selected={selected}
                 allSelected={allSelected}
                 showStorageClass={showStorageClass}
+                folderUsage={folderUsage}
+                sort={sort}
+                onSortChange={setSort}
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 onOpenDetail={setDetail}
@@ -268,6 +341,7 @@ export function ObjectBrowser({
                 prefixes={prefixes}
                 objects={visible}
                 selected={selected}
+                folderUsage={folderUsage}
                 onToggle={toggle}
                 onOpenDetail={setDetail}
                 onDeleteOne={openDeleteOne}
@@ -277,6 +351,7 @@ export function ObjectBrowser({
         )}
 
         {loadError ? <Alert variant="error">{loadError}</Alert> : null}
+        {usageError ? <Alert variant="error">{usageError}</Alert> : null}
 
         <Flex
           color="fg.muted"

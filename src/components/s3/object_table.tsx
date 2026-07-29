@@ -1,25 +1,111 @@
 "use client";
 
 import Link from "next/link";
-import { CircleQuestionMark, File, Folder, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
+  File,
+  Folder,
+  Trash2,
+} from "lucide-react";
 import { Checkbox, HStack, Icon, Span, Table } from "@chakra-ui/react";
+import type { TableColumnHeaderProps } from "@chakra-ui/react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
+import type { PrefixUsageEntry } from "@/application/scan_prefix_usage";
+import type { SortDirection, SortKey, SortSpec } from "@/lib/object_filtering";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { lastPathSegment } from "@/lib/object_path";
 import { truncateMiddle } from "@/lib/truncate";
-import { DownloadLinkActions, OpenLinkButton } from "./download_link_actions";
-import { useDownloadLinks } from "./download_link_context";
+import { CopyLinkButton, OpenLinkButton } from "./download_link_actions";
 
 function prefixHref(bucket: string, prefix: string): string {
   return `/buckets/${encodeURIComponent(bucket)}?prefix=${encodeURIComponent(prefix)}`;
 }
 
-/** Precondition a direct link cannot satisfy on its own, surfaced on hover. */
-const DIRECT_LINK_HINT =
-  "Direct links require the object to allow anonymous read access.";
+/**
+ * Direction a column starts in when it first becomes the sort key.
+ *
+ * Names read naturally A to Z, while the interesting end of a size or a date is
+ * the large or recent one, so those open descending.
+ */
+const INITIAL_DIRECTION: Record<SortKey, SortDirection> = {
+  name: "asc",
+  size: "desc",
+  lastModified: "desc",
+};
+
+/** Column header that also acts as the sort control for its column. */
+function SortableHeader({
+  column,
+  label,
+  sort,
+  onSortChange,
+  // Not named `align`: that collides with the native `<th>` attribute in
+  // TableColumnHeaderProps, and the intersection narrows it to never.
+  alignment = "start",
+  ...columnProps
+}: {
+  column: SortKey;
+  label: string;
+  sort: SortSpec;
+  onSortChange: (sort: SortSpec) => void;
+  alignment?: "start" | "end";
+} & TableColumnHeaderProps) {
+  const active = sort.key === column;
+  const next: SortSpec = active
+    ? { key: column, direction: sort.direction === "asc" ? "desc" : "asc" }
+    : { key: column, direction: INITIAL_DIRECTION[column] };
+
+  return (
+    <Table.ColumnHeader
+      textAlign={alignment}
+      aria-sort={
+        active
+          ? sort.direction === "asc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+      {...columnProps}
+    >
+      <HStack
+        asChild
+        gap="1"
+        display="inline-flex"
+        justify={alignment === "end" ? "flex-end" : "flex-start"}
+      >
+        <button
+          type="button"
+          onClick={() => onSortChange(next)}
+          title={`Sort by ${label}, ${next.direction === "asc" ? "ascending" : "descending"}`}
+        >
+          {label}
+          <Icon size="xs" color={active ? "fg" : "fg.muted"} asChild>
+            {active ? (
+              sort.direction === "asc" ? (
+                <ArrowUp />
+              ) : (
+                <ArrowDown />
+              )
+            ) : (
+              <ChevronsUpDown />
+            )}
+          </Icon>
+        </button>
+      </HStack>
+    </Table.ColumnHeader>
+  );
+}
+
+/** Shown where a value exists but has not been measured yet. */
+const NOT_MEASURED = "-";
+
+/** Shown where a column has no meaning for the row, matching the object rows. */
+const NOT_APPLICABLE = "—";
 
 // Hoisted so every row shares one style object; building it per row would defeat
 // Emotion's class caching on listings that can run to hundreds of rows.
@@ -35,6 +121,10 @@ interface ObjectTableProps {
   selected: ReadonlySet<string>;
   allSelected: boolean;
   showStorageClass: boolean;
+  /** Folder totals from a scan, keyed by full prefix; absent until one runs. */
+  folderUsage?: Map<string, PrefixUsageEntry>;
+  sort: SortSpec;
+  onSortChange: (sort: SortSpec) => void;
   onToggle: (key: string) => void;
   onToggleAll: (checked: boolean) => void;
   onOpenDetail: (object: ObjectSummary) => void;
@@ -49,20 +139,14 @@ export function ObjectTable({
   selected,
   allSelected,
   showStorageClass,
+  folderUsage,
+  sort,
+  onSortChange,
   onToggle,
   onToggleAll,
   onOpenDetail,
   onDeleteOne,
 }: ObjectTableProps) {
-  // Naming the active mode in the header tells the user what the row's URL
-  // actually is, since direct and presigned links are not interchangeable.
-  const { mode } = useDownloadLinks();
-  const urlColumnLabel =
-    mode === "presigned" ? "URL (Presigned)" : "URL (Direct)";
-  // A folder row spans every column except the leading checkbox, so the span
-  // has to follow the optional Storage Class column.
-  const folderColSpan = showStorageClass ? 6 : 5;
-
   return (
     // No height cap: the listing expands in full and the page is what scrolls,
     // so the user never has to scroll inside a box to reach the last object.
@@ -71,9 +155,13 @@ export function ObjectTable({
       <Table.Root size="sm" interactive>
         <Table.Header>
           <Table.Row bg="bg.muted">
-            <Table.ColumnHeader width="10">
+            {/* Centred rather than start-aligned: the box is the cell's only
+                content, and Chakra aligns a checkbox to the top of its line so a
+                multi-line label lines up, which leaves it high in a bare cell. */}
+            <Table.ColumnHeader width="12" textAlign="center">
               <Checkbox.Root
                 size="sm"
+                verticalAlign="middle"
                 checked={allSelected}
                 onCheckedChange={(event) => onToggleAll(event.checked === true)}
               >
@@ -81,54 +169,72 @@ export function ObjectTable({
                 <Checkbox.Control />
               </Checkbox.Root>
             </Table.ColumnHeader>
-            <Table.ColumnHeader>Name</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Size</Table.ColumnHeader>
-            <Table.ColumnHeader>Last Modified</Table.ColumnHeader>
+            <SortableHeader
+              column="name"
+              label="Name"
+              sort={sort}
+              onSortChange={onSortChange}
+            />
+            <SortableHeader
+              column="size"
+              label="Size"
+              alignment="end"
+              sort={sort}
+              onSortChange={onSortChange}
+            />
+            <SortableHeader
+              column="lastModified"
+              label="Last Modified"
+              sort={sort}
+              onSortChange={onSortChange}
+            />
             {showStorageClass ? (
               <Table.ColumnHeader>Storage Class</Table.ColumnHeader>
             ) : null}
-            <Table.ColumnHeader>
-              <HStack gap="1" display="inline-flex">
-                {urlColumnLabel}
-                {mode === "direct" ? (
-                  <Span
-                    role="img"
-                    aria-label={DIRECT_LINK_HINT}
-                    title={DIRECT_LINK_HINT}
-                    cursor="help"
-                  >
-                    <Icon size="xs" asChild>
-                      <CircleQuestionMark />
-                    </Icon>
-                  </Span>
-                ) : null}
-              </HStack>
-            </Table.ColumnHeader>
-            <Table.ColumnHeader width="32" textAlign="end">
-              Actions
-            </Table.ColumnHeader>
+            <Table.ColumnHeader width="32">Actions</Table.ColumnHeader>
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {prefixes.map((entry) => (
-            <Table.Row key={entry.prefix} {...ROW_STYLES}>
-              <Table.Cell />
-              <Table.Cell colSpan={folderColSpan}>
-                <Link href={prefixHref(bucket, entry.prefix)}>
-                  <HStack
-                    gap="2"
-                    fontWeight="medium"
-                    _hover={{ color: "brand.fg" }}
-                  >
-                    <Icon size="sm" color="brand.solid" asChild>
-                      <Folder />
-                    </Icon>
-                    {entry.name}/
-                  </HStack>
-                </Link>
-              </Table.Cell>
-            </Table.Row>
-          ))}
+          {prefixes.map((entry) => {
+            const usage = folderUsage?.get(entry.prefix);
+            return (
+              <Table.Row
+                key={entry.prefix}
+                {...ROW_STYLES}
+                title={
+                  usage
+                    ? `${usage.objectCount.toLocaleString()} object${usage.objectCount === 1 ? "" : "s"}`
+                    : undefined
+                }
+              >
+                <Table.Cell />
+                <Table.Cell>
+                  <Link href={prefixHref(bucket, entry.prefix)}>
+                    <HStack
+                      gap="2"
+                      fontWeight="medium"
+                      _hover={{ color: "brand.fg" }}
+                    >
+                      <Icon size="sm" color="brand.solid" asChild>
+                        <Folder />
+                      </Icon>
+                      {entry.name}/
+                    </HStack>
+                  </Link>
+                </Table.Cell>
+                {/* A folder's size is only known once a scan has walked it, since
+                    no listing call reports an aggregate for a prefix. */}
+                <Table.Cell textAlign="end">
+                  {usage ? formatSize(usage.totalSize) : NOT_MEASURED}
+                </Table.Cell>
+                <Table.Cell color="fg.muted">{NOT_APPLICABLE}</Table.Cell>
+                {showStorageClass ? (
+                  <Table.Cell color="fg.muted">{NOT_APPLICABLE}</Table.Cell>
+                ) : null}
+                <Table.Cell />
+              </Table.Row>
+            );
+          })}
           {objects.map((object) => {
             const isSelected = selected.has(object.key);
             return (
@@ -137,9 +243,10 @@ export function ObjectTable({
                 data-selected={isSelected ? "" : undefined}
                 {...ROW_STYLES}
               >
-                <Table.Cell>
+                <Table.Cell textAlign="center">
                   <Checkbox.Root
                     size="sm"
+                    verticalAlign="middle"
                     checked={isSelected}
                     onCheckedChange={() => onToggle(object.key)}
                   >
@@ -193,14 +300,9 @@ export function ObjectTable({
                     {object.storageClass ?? "—"}
                   </Table.Cell>
                 ) : null}
-                <Table.Cell maxW="16rem">
-                  <DownloadLinkActions
-                    objectKey={object.key}
-                    showOpen={false}
-                  />
-                </Table.Cell>
                 <Table.Cell>
                   <HStack gap="1" justify="flex-end">
+                    <CopyLinkButton objectKey={object.key} />
                     <OpenLinkButton objectKey={object.key} />
                     <Button
                       variant="ghost"

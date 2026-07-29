@@ -1,6 +1,11 @@
 "use client";
 
-import { Clock, Copy, ExternalLink, TriangleAlert } from "lucide-react";
+import {
+  Clock,
+  ExternalLink,
+  Link as LinkIcon,
+  TriangleAlert,
+} from "lucide-react";
 import { HStack, Icon, Span } from "@chakra-ui/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -47,27 +52,57 @@ export function OpenLinkButton({ objectKey }: { objectKey: string }) {
 }
 
 /**
+ * Copies an object's download link to the clipboard.
+ *
+ * Exported on its own, like {@link OpenLinkButton}, so a row can group this with
+ * its other per-object actions instead of keeping it beside the URL. The link
+ * glyph rather than a clipboard names what is copied, since the row already has a
+ * separate control that copies the filename.
+ */
+export function CopyLinkButton({ objectKey }: { objectKey: string }) {
+  const { linkFor, copy } = useDownloadLinks();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => copy(objectKey)}
+      disabled={linkFor(objectKey).status === "loading"}
+      aria-label="Copy download link"
+      title="Copy link"
+    >
+      <Icon size="sm" asChild>
+        <LinkIcon />
+      </Icon>
+    </Button>
+  );
+}
+
+/**
  * Compact Copy/Open actions for a single object's download link.
  *
  * Shows a truncated URL and, in presigned mode, loading/expiry/error state
  * without letting long URLs affect the surrounding layout. A presigned URL is
  * only signed once the user presses one of these buttons.
  *
+ * @param showCopy - Set to `false` when the caller renders `CopyLinkButton`
+ * elsewhere, so the same action is not offered twice in one row.
  * @param showOpen - Set to `false` when the caller renders `OpenLinkButton`
  * elsewhere, so the same action is not offered twice in one row.
  */
 export function DownloadLinkActions({
   objectKey,
   showUrl = true,
+  showCopy = true,
   showOpen = true,
 }: {
   objectKey: string;
   showUrl?: boolean;
+  showCopy?: boolean;
   showOpen?: boolean;
 }) {
-  const { linkFor, copy } = useDownloadLinks();
+  const { linkFor } = useDownloadLinks();
   const link = linkFor(objectKey);
-  const disabled = link.status === "loading";
 
   return (
     <HStack minW="0" gap="1">
@@ -115,18 +150,7 @@ export function DownloadLinkActions({
         </Icon>
       ) : null}
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => copy(objectKey)}
-        disabled={disabled}
-        aria-label="Copy download link"
-        title="Copy link"
-      >
-        <Icon size="sm" asChild>
-          <Copy />
-        </Icon>
-      </Button>
+      {showCopy ? <CopyLinkButton objectKey={objectKey} /> : null}
       {showOpen ? <OpenLinkButton objectKey={objectKey} /> : null}
     </HStack>
   );

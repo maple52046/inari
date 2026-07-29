@@ -44,9 +44,13 @@ export function CleanupCandidateTable({
       <Table.Root size="sm" interactive>
         <Table.Header>
           <Table.Row bg="bg.muted">
-            <Table.ColumnHeader width="10">
+            {/* Centred for the same reason as the object listing: the box is the
+                cell's only content, and Chakra top-aligns a checkbox so that a
+                multi-line label lines up with it. */}
+            <Table.ColumnHeader width="12" textAlign="center">
               <Checkbox.Root
                 size="sm"
+                verticalAlign="middle"
                 checked={allSelected}
                 onCheckedChange={(event) => onToggleAll(event.checked === true)}
               >
@@ -75,9 +79,10 @@ export function CleanupCandidateTable({
                 data-selected={isSelected ? "" : undefined}
                 {...ROW_STYLES}
               >
-                <Table.Cell>
+                <Table.Cell textAlign="center">
                   <Checkbox.Root
                     size="sm"
+                    verticalAlign="middle"
                     checked={isSelected}
                     onCheckedChange={() => onToggle(id)}
                   >

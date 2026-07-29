@@ -54,6 +54,12 @@ export function ColorModeSelector() {
           }
         }}
         size="sm"
+        // The group is `inline-flex`, but that only governs how it lays out its
+        // own children: as a flex item in a column container such as a card body
+        // it still stretches to the full width, which drags the last segment out
+        // across the leftover space. Opting out of the stretch keeps all three
+        // segments at their natural width.
+        alignSelf="flex-start"
       >
         <SegmentGroup.Indicator />
         {OPTIONS.map((option) => (

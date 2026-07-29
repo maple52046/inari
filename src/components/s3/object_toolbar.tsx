@@ -143,7 +143,10 @@ export function ObjectToolbar({
             />
           </InputGroup>
 
-          <HStack gap="1">
+          {/* Below md only: the table's own headers carry the sort control, but
+              the card view that replaces the table there has no headers, so this
+              is the only way to sort on a narrow screen. */}
+          <HStack gap="1" display={{ base: "flex", md: "none" }}>
             <NativeSelect.Root width="auto">
               <NativeSelect.Field
                 value={sort.key}
@@ -249,8 +252,6 @@ export function ObjectToolbar({
           wrap="wrap"
           align="center"
         >
-          {/* Keeping the switch flush right holds its position across modes, so
-              enabling presigned URLs does not shift the control the user just hit. */}
           <Wrap ml="auto" align="center" gapX="4" gapY="2">
             {/* Hidden below md: the column it controls only exists in the table
                 view, and the card view never renders a storage class. */}
@@ -269,6 +270,25 @@ export function ObjectToolbar({
               />
             </HStack>
 
+            <HStack gap="2">
+              <Icon size="sm" color="fg.muted" asChild>
+                <KeyRound />
+              </Icon>
+              <Text asChild fontWeight="medium">
+                <label htmlFor="presigned-switch">Presigned URL</label>
+              </Text>
+              <Switch
+                id="presigned-switch"
+                checked={downloadMode === "presigned"}
+                onCheckedChange={(checked) =>
+                  onDownloadModeChange(checked ? "presigned" : "direct")
+                }
+                aria-label="Use presigned download URLs"
+              />
+            </HStack>
+
+            {/* Sits after the switch, so turning presigned on shifts the switch
+                left by this group's width rather than leaving it in place. */}
             {downloadMode === "presigned" ? (
               <HStack gap="2">
                 <Text asChild color="fg.muted" fontSize="xs">
@@ -294,23 +314,6 @@ export function ObjectToolbar({
                 </NativeSelect.Root>
               </HStack>
             ) : null}
-
-            <HStack gap="2">
-              <Icon size="sm" color="fg.muted" asChild>
-                <KeyRound />
-              </Icon>
-              <Text asChild fontWeight="medium">
-                <label htmlFor="presigned-switch">Presigned URL</label>
-              </Text>
-              <Switch
-                id="presigned-switch"
-                checked={downloadMode === "presigned"}
-                onCheckedChange={(checked) =>
-                  onDownloadModeChange(checked ? "presigned" : "direct")
-                }
-                aria-label="Use presigned download URLs"
-              />
-            </HStack>
           </Wrap>
         </Flex>
 

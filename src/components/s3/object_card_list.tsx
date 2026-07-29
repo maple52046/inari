@@ -12,6 +12,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
+import type { PrefixUsageEntry } from "@/application/scan_prefix_usage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
@@ -30,6 +31,8 @@ interface ObjectCardListProps {
   prefixes: CommonPrefix[];
   objects: ObjectSummary[];
   selected: ReadonlySet<string>;
+  /** Folder totals from a scan, keyed by full prefix; absent until one runs. */
+  folderUsage?: Map<string, PrefixUsageEntry>;
   onToggle: (key: string) => void;
   onOpenDetail: (object: ObjectSummary) => void;
   onDeleteOne: (object: ObjectSummary) => void;
@@ -41,24 +44,37 @@ export function ObjectCardList({
   prefixes,
   objects,
   selected,
+  folderUsage,
   onToggle,
   onOpenDetail,
   onDeleteOne,
 }: ObjectCardListProps) {
   return (
     <Stack gap="2">
-      {prefixes.map((entry) => (
-        <Link key={entry.prefix} href={prefixHref(bucket, entry.prefix)}>
-          <Card _hover={{ borderColor: "brand.solid" }}>
-            <HStack gap="2" p="3">
-              <Icon size="md" color="brand.solid" asChild>
-                <Folder />
-              </Icon>
-              <Span fontWeight="medium">{entry.name}/</Span>
-            </HStack>
-          </Card>
-        </Link>
-      ))}
+      {prefixes.map((entry) => {
+        const usage = folderUsage?.get(entry.prefix);
+        return (
+          <Link key={entry.prefix} href={prefixHref(bucket, entry.prefix)}>
+            <Card _hover={{ borderColor: "brand.solid" }}>
+              <HStack gap="2" p="3">
+                <Icon size="md" color="brand.solid" asChild>
+                  <Folder />
+                </Icon>
+                <Span fontWeight="medium" flex="1" truncate>
+                  {entry.name}/
+                </Span>
+                {/* Only present once a scan has walked the folder; no listing
+                    call reports an aggregate for a prefix. */}
+                {usage ? (
+                  <Span color="fg.muted" fontSize="xs" whiteSpace="nowrap">
+                    {formatSize(usage.totalSize)}
+                  </Span>
+                ) : null}
+              </HStack>
+            </Card>
+          </Link>
+        );
+      })}
       {objects.map((object) => (
         <Card key={object.key}>
           <Stack p="3" gap="2">

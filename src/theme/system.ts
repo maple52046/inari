@@ -1,4 +1,5 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
+import { checkboxAnatomy } from "@chakra-ui/react/anatomy";
 
 /**
  * Design system for the app, carrying the pre-Chakra colour scheme forward.
@@ -81,15 +82,29 @@ const config = defineConfig({
           950: { value: "oklch(0.19 0.06 25)" },
         },
       },
-      radii: {
-        // Carried over from the previous `--radius: 0.625rem` and its -2px/-4px
-        // derivations.
-        xs: { value: "0.375rem" },
-        sm: { value: "0.5rem" },
-        md: { value: "0.625rem" },
+    },
+    slotRecipes: {
+      checkbox: {
+        slots: checkboxAnatomy.keys(),
+        // Chakra rounds the box with `l1`, which this app sets to 0.375rem to
+        // match its surfaces. On a 16px control that is nearly a quarter of the
+        // side and reads as a pill, so the box gets its own near-square radius.
+        base: { control: { borderRadius: "xs" } },
       },
     },
     semanticTokens: {
+      radii: {
+        // The app's corner scale, carried over from the previous
+        // `--radius: 0.625rem` and its -2px/-4px derivations.
+        //
+        // Set here rather than on the base `xs`/`sm`/`md` tokens: every recipe
+        // reaches rounding through these three, so overriding the base scale
+        // changed nothing extra while leaving `xs` meaning something unusually
+        // large to anyone reading a recipe override.
+        l1: { value: "0.375rem" },
+        l2: { value: "0.5rem" },
+        l3: { value: "0.625rem" },
+      },
       colors: {
         brand: {
           solid: {
