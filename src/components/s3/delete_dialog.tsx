@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Trash2, TriangleAlert } from "lucide-react";
+import { Box, HStack, Icon, List, Stack, Text } from "@chakra-ui/react";
 import type { ObjectSummary } from "@/domain/s3/models";
 import type { DeleteResult } from "@/domain/s3/models";
 import { Modal } from "@/components/ui/modal";
@@ -87,7 +88,13 @@ export function DeleteDialog({
               onClick={runDelete}
               disabled={!confirmed || deleting}
             >
-              {deleting ? <Spinner /> : <Trash2 className="h-4 w-4" />}
+              {deleting ? (
+                <Spinner size="sm" />
+              ) : (
+                <Icon size="sm" asChild>
+                  <Trash2 />
+                </Icon>
+              )}
               Delete {targets.length}
             </Button>
           </>
@@ -95,67 +102,102 @@ export function DeleteDialog({
       }
     >
       {result ? (
-        <div className="space-y-3 text-sm">
-          <p>
-            Deleted <span className="font-medium">{result.deleted.length}</span>{" "}
+        <Stack gap="3" fontSize="sm">
+          <Text>
+            Deleted{" "}
+            <Text as="span" fontWeight="medium">
+              {result.deleted.length}
+            </Text>{" "}
             object{result.deleted.length === 1 ? "" : "s"}.
-          </p>
+          </Text>
           {result.failed.length > 0 ? (
-            <div>
+            <Stack gap="2">
               <Alert variant="error">
                 {result.failed.length} object
                 {result.failed.length === 1 ? "" : "s"} could not be deleted.
               </Alert>
-              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs">
+              <List.Root
+                variant="plain"
+                maxH="40"
+                overflowY="auto"
+                fontFamily="mono"
+                fontSize="xs"
+                gap="1"
+              >
                 {result.failed.map((failure) => (
-                  <li key={failure.key} className="text-destructive">
+                  <List.Item key={failure.key} color="fg.error">
                     {truncateMiddle(failure.key, 60)} - {failure.message}
-                  </li>
+                  </List.Item>
                 ))}
-              </ul>
-            </div>
+              </List.Root>
+            </Stack>
           ) : null}
-        </div>
+        </Stack>
       ) : (
-        <div className="space-y-4 text-sm">
-          <div className="bg-muted flex items-start gap-2 rounded-md px-3 py-2">
-            <TriangleAlert className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-            <p>
+        <Stack gap="4" fontSize="sm">
+          <HStack
+            align="flex-start"
+            gap="2"
+            bg="bg.muted"
+            px="3"
+            py="2"
+            borderRadius="l2"
+          >
+            <Icon size="sm" color="fg.error" mt="0.5" asChild>
+              <TriangleAlert />
+            </Icon>
+            <Text>
               You are about to delete{" "}
-              <span className="font-medium">{targets.length}</span> object
-              {targets.length === 1 ? "" : "s"} ({formatSize(totalSize)}). This
-              operation may be irreversible.
-            </p>
-          </div>
+              <Text as="span" fontWeight="medium">
+                {targets.length}
+              </Text>{" "}
+              object{targets.length === 1 ? "" : "s"} ({formatSize(totalSize)}).
+              This operation may be irreversible.
+            </Text>
+          </HStack>
 
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">
+          <Box>
+            <Text color="fg.muted" fontSize="xs" mb="1">
               Showing up to {PREVIEW_LIMIT} of {targets.length} keys:
-            </p>
-            <ul className="border-border max-h-40 space-y-1 overflow-y-auto rounded-md border p-2 font-mono text-xs">
+            </Text>
+            <List.Root
+              variant="plain"
+              maxH="40"
+              overflowY="auto"
+              borderWidth="1px"
+              borderColor="border"
+              borderRadius="l2"
+              p="2"
+              fontFamily="mono"
+              fontSize="xs"
+              gap="1"
+            >
               {targets.slice(0, PREVIEW_LIMIT).map((object) => (
-                <li key={object.key} className="truncate">
+                <List.Item key={object.key} truncate>
                   {object.key}
-                </li>
+                </List.Item>
               ))}
-            </ul>
-          </div>
+            </List.Root>
+          </Box>
 
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">
-              Type <span className="font-mono font-semibold">DELETE</span> to
-              confirm:
-            </p>
+          <Box>
+            <Text color="fg.muted" fontSize="xs" mb="1">
+              Type{" "}
+              <Text as="span" fontFamily="mono" fontWeight="semibold">
+                DELETE
+              </Text>{" "}
+              to confirm:
+            </Text>
             <Input
               value={confirmText}
               onChange={(event) => setConfirmText(event.target.value)}
               placeholder="DELETE"
               autoComplete="off"
             />
-          </div>
+          </Box>
 
           {error ? <Alert variant="error">{error}</Alert> : null}
-        </div>
+        </Stack>
       )}
     </Modal>
   );

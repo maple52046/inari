@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CircleQuestionMark, File, Folder, Trash2 } from "lucide-react";
+import { Checkbox, HStack, Icon, Span, Table } from "@chakra-ui/react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
@@ -19,6 +20,13 @@ function prefixHref(bucket: string, prefix: string): string {
 /** Precondition a direct link cannot satisfy on its own, surfaced on hover. */
 const DIRECT_LINK_HINT =
   "Direct links require the object to allow anonymous read access.";
+
+// Hoisted so every row shares one style object; building it per row would defeat
+// Emotion's class caching on listings that can run to hundreds of rows.
+const ROW_STYLES = {
+  _hover: { bg: "bg.subtle" },
+  _selected: { bg: "bg.muted" },
+} as const;
 
 interface ObjectTableProps {
   bucket: string;
@@ -56,89 +64,115 @@ export function ObjectTable({
   const folderColSpan = showStorageClass ? 6 : 5;
 
   return (
-    <div className="border-border overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted text-muted-foreground text-left">
-          <tr>
-            <th className="w-10 px-3 py-2">
-              <input
-                type="checkbox"
+    // No height cap: the listing expands in full and the page is what scrolls,
+    // so the user never has to scroll inside a box to reach the last object.
+    // The scroll area is kept only for horizontal overflow on narrow viewports.
+    <Table.ScrollArea borderWidth="1px" borderColor="border" borderRadius="l3">
+      <Table.Root size="sm" interactive>
+        <Table.Header>
+          <Table.Row bg="bg.muted">
+            <Table.ColumnHeader width="10">
+              <Checkbox.Root
+                size="sm"
                 checked={allSelected}
-                onChange={(event) => onToggleAll(event.target.checked)}
-                aria-label="Select all loaded objects"
-                className="h-4 w-4 accent-[var(--color-primary)]"
-              />
-            </th>
-            <th className="px-3 py-2">Name</th>
-            <th className="px-3 py-2 text-right">Size</th>
-            <th className="px-3 py-2">Last Modified</th>
+                onCheckedChange={(event) => onToggleAll(event.checked === true)}
+              >
+                <Checkbox.HiddenInput aria-label="Select all loaded objects" />
+                <Checkbox.Control />
+              </Checkbox.Root>
+            </Table.ColumnHeader>
+            <Table.ColumnHeader>Name</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Size</Table.ColumnHeader>
+            <Table.ColumnHeader>Last Modified</Table.ColumnHeader>
             {showStorageClass ? (
-              <th className="px-3 py-2">Storage Class</th>
+              <Table.ColumnHeader>Storage Class</Table.ColumnHeader>
             ) : null}
-            <th className="px-3 py-2">
-              <span className="inline-flex items-center gap-1">
+            <Table.ColumnHeader>
+              <HStack gap="1" display="inline-flex">
                 {urlColumnLabel}
                 {mode === "direct" ? (
-                  <span
+                  <Span
                     role="img"
                     aria-label={DIRECT_LINK_HINT}
                     title={DIRECT_LINK_HINT}
-                    className="cursor-help"
+                    cursor="help"
                   >
-                    <CircleQuestionMark className="h-3.5 w-3.5" />
-                  </span>
+                    <Icon size="xs" asChild>
+                      <CircleQuestionMark />
+                    </Icon>
+                  </Span>
                 ) : null}
-              </span>
-            </th>
-            <th className="w-32 px-3 py-2 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+              </HStack>
+            </Table.ColumnHeader>
+            <Table.ColumnHeader width="32" textAlign="end">
+              Actions
+            </Table.ColumnHeader>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
           {prefixes.map((entry) => (
-            <tr key={entry.prefix} className="border-border border-t">
-              <td className="px-3 py-2" />
-              <td className="px-3 py-2" colSpan={folderColSpan}>
-                <Link
-                  href={prefixHref(bucket, entry.prefix)}
-                  className="hover:text-primary flex items-center gap-2 font-medium"
-                >
-                  <Folder className="text-primary h-4 w-4" />
-                  {entry.name}/
+            <Table.Row key={entry.prefix} {...ROW_STYLES}>
+              <Table.Cell />
+              <Table.Cell colSpan={folderColSpan}>
+                <Link href={prefixHref(bucket, entry.prefix)}>
+                  <HStack
+                    gap="2"
+                    fontWeight="medium"
+                    _hover={{ color: "brand.fg" }}
+                  >
+                    <Icon size="sm" color="brand.solid" asChild>
+                      <Folder />
+                    </Icon>
+                    {entry.name}/
+                  </HStack>
                 </Link>
-              </td>
-            </tr>
+              </Table.Cell>
+            </Table.Row>
           ))}
           {objects.map((object) => {
             const isSelected = selected.has(object.key);
             return (
-              <tr
+              <Table.Row
                 key={object.key}
-                className="border-border hover:bg-accent/50 border-t"
+                data-selected={isSelected ? "" : undefined}
+                {...ROW_STYLES}
               >
-                <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
+                <Table.Cell>
+                  <Checkbox.Root
+                    size="sm"
                     checked={isSelected}
-                    onChange={() => onToggle(object.key)}
-                    aria-label={`Select ${object.name}`}
-                    className="h-4 w-4 accent-[var(--color-primary)]"
-                  />
-                </td>
-                <td className="px-3 py-2">
+                    onCheckedChange={() => onToggle(object.key)}
+                  >
+                    <Checkbox.HiddenInput
+                      aria-label={`Select ${object.name}`}
+                    />
+                    <Checkbox.Control />
+                  </Checkbox.Root>
+                </Table.Cell>
+                <Table.Cell>
                   {/* The copy control is a sibling, not a child, of the detail
                       button: nested buttons are invalid markup. */}
-                  <div className="flex min-w-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetail(object)}
-                      className="hover:text-primary flex min-w-0 items-center gap-2 text-left"
-                      title={object.key}
+                  <HStack gap="1" minW="0">
+                    <HStack
+                      asChild
+                      gap="2"
+                      minW="0"
+                      textAlign="left"
+                      _hover={{ color: "brand.fg" }}
                     >
-                      <File className="text-muted-foreground h-4 w-4 shrink-0" />
-                      <span className="font-mono">
-                        {truncateMiddle(object.name, 52)}
-                      </span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenDetail(object)}
+                        title={object.key}
+                      >
+                        <Icon size="sm" color="fg.muted" flexShrink="0" asChild>
+                          <File />
+                        </Icon>
+                        <Span fontFamily="mono">
+                          {truncateMiddle(object.name, 52)}
+                        </Span>
+                      </button>
+                    </HStack>
                     <CopyButton
                       value={lastPathSegment(object.key)}
                       label=""
@@ -146,27 +180,27 @@ export function ObjectTable({
                       aria-label={`Copy filename of ${object.name}`}
                       title="Copy filename"
                     />
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                  </HStack>
+                </Table.Cell>
+                <Table.Cell textAlign="end">
                   {formatSize(object.size)}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
+                </Table.Cell>
+                <Table.Cell whiteSpace="nowrap">
                   {formatDateTime(object.lastModified)}
-                </td>
+                </Table.Cell>
                 {showStorageClass ? (
-                  <td className="text-muted-foreground px-3 py-2">
+                  <Table.Cell color="fg.muted">
                     {object.storageClass ?? "—"}
-                  </td>
+                  </Table.Cell>
                 ) : null}
-                <td className="max-w-[16rem] px-3 py-2">
+                <Table.Cell maxW="16rem">
                   <DownloadLinkActions
                     objectKey={object.key}
                     showOpen={false}
                   />
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-1">
+                </Table.Cell>
+                <Table.Cell>
+                  <HStack gap="1" justify="flex-end">
                     <OpenLinkButton objectKey={object.key} />
                     <Button
                       variant="ghost"
@@ -175,15 +209,17 @@ export function ObjectTable({
                       aria-label={`Delete ${object.name}`}
                       title="Delete"
                     >
-                      <Trash2 className="text-destructive h-4 w-4" />
+                      <Icon size="sm" color="fg.error" asChild>
+                        <Trash2 />
+                      </Icon>
                     </Button>
-                  </div>
-                </td>
-              </tr>
+                  </HStack>
+                </Table.Cell>
+              </Table.Row>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </Table.Body>
+      </Table.Root>
+    </Table.ScrollArea>
   );
 }

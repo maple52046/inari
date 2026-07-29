@@ -6,8 +6,18 @@ import {
   KeyRound,
   Link as LinkIcon,
   RefreshCw,
-  X,
 } from "lucide-react";
+import {
+  Box,
+  CloseButton,
+  Drawer,
+  Grid,
+  HStack,
+  Icon,
+  Portal,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { ObjectSummary } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
@@ -18,10 +28,14 @@ import { useDownloadLinks } from "./download_link_context";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="text-sm break-all">{value}</p>
-    </div>
+    <Box>
+      <Text color="fg.muted" fontSize="xs">
+        {label}
+      </Text>
+      <Text fontSize="sm" wordBreak="break-all">
+        {value}
+      </Text>
+    </Box>
   );
 }
 
@@ -34,42 +48,47 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
     link.expiresAt !== undefined ? link.expiresAt - expiry * 1000 : undefined;
 
   return (
-    <div className="border-border space-y-2 border-t pt-4">
-      <div className="flex items-center gap-2">
-        {isPresigned ? (
-          <KeyRound className="text-primary h-4 w-4" />
-        ) : (
-          <LinkIcon className="text-primary h-4 w-4" />
-        )}
-        <p className="text-sm font-medium">Download</p>
-        <span className="text-muted-foreground text-xs">
+    <Stack borderTopWidth="1px" borderColor="border" pt="4" gap="2">
+      <HStack gap="2">
+        <Icon size="sm" color="brand.solid" asChild>
+          {isPresigned ? <KeyRound /> : <LinkIcon />}
+        </Icon>
+        <Text fontSize="sm" fontWeight="medium">
+          Download
+        </Text>
+        <Text color="fg.muted" fontSize="xs">
           {isPresigned ? "Presigned" : "Direct"}
-        </span>
-      </div>
+        </Text>
+      </HStack>
 
       {link.status === "loading" ? (
-        <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Spinner /> Generating link…
-        </p>
+        <HStack color="fg.muted" fontSize="sm" gap="2">
+          <Spinner size="sm" /> Generating link…
+        </HStack>
       ) : link.status === "error" ? (
-        <p className="text-destructive text-sm">
+        <Text color="fg.error" fontSize="sm">
           {link.message ?? "Failed to prepare download link"}
-        </p>
+        </Text>
       ) : link.status === "idle" ? (
-        <p className="text-muted-foreground text-sm">
+        <Text color="fg.muted" fontSize="sm">
           No link yet. Copy, open, or generate one when you need it.
-        </p>
+        </Text>
       ) : (
-        <p
-          className="bg-muted rounded-md p-2 font-mono text-xs break-all"
+        <Text
+          bg="bg.muted"
+          borderRadius="l2"
+          p="2"
+          fontFamily="mono"
+          fontSize="xs"
+          wordBreak="break-all"
           title={link.url}
         >
           {link.url}
-        </p>
+        </Text>
       )}
 
       {isPresigned && link.status === "ready" ? (
-        <div className="text-muted-foreground grid grid-cols-2 gap-2 text-xs">
+        <Grid templateColumns="repeat(2, 1fr)" gap="2" color="fg.muted">
           <Field
             label="Generated"
             value={formatDateTime(
@@ -82,17 +101,19 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
               link.expiresAt ? new Date(link.expiresAt) : undefined,
             )}
           />
-        </div>
+        </Grid>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <HStack wrap="wrap" gap="2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => copy(objectKey)}
           disabled={link.status === "loading"}
         >
-          <Copy className="h-4 w-4" />
+          <Icon size="sm" asChild>
+            <Copy />
+          </Icon>
           Copy Link
         </Button>
         <Button
@@ -101,7 +122,9 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
           onClick={() => open(objectKey)}
           disabled={link.status === "loading"}
         >
-          <ExternalLink className="h-4 w-4" />
+          <Icon size="sm" asChild>
+            <ExternalLink />
+          </Icon>
           Open Link
         </Button>
         {isPresigned ? (
@@ -111,27 +134,28 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
             onClick={() => regenerate(objectKey)}
             disabled={link.status === "loading"}
           >
-            <RefreshCw className="h-4 w-4" />
+            <Icon size="sm" asChild>
+              <RefreshCw />
+            </Icon>
             {link.status === "idle" ? "Generate" : "Regenerate"}
           </Button>
         ) : null}
-      </div>
+      </HStack>
 
       {!isPresigned ? (
-        <p className="text-muted-foreground text-xs">
+        <Text color="fg.muted" fontSize="xs">
           Direct links require the object to allow anonymous read access.
-        </p>
+        </Text>
       ) : null}
-    </div>
+    </Stack>
   );
 }
 
 /**
  * Right-hand drawer showing full metadata and download links for one object.
  *
- * The fractional width resolves against the viewport because the drawer is
- * `fixed`; nesting it inside a positioned ancestor would silently change what
- * the fraction is measured against.
+ * The fractional width is kept from the pre-Chakra implementation and resolves
+ * against the viewport, since the positioner is fixed to it.
  */
 export function ObjectDetailDrawer({
   object,
@@ -145,38 +169,56 @@ export function ObjectDetailDrawer({
   }
 
   return (
-    <div className="border-border bg-card fixed inset-y-0 right-0 z-40 flex w-1/2 flex-col border-l shadow-xl md:w-1/3">
-      <div className="border-border flex items-center justify-between border-b px-4 py-3">
-        <h2 className="font-semibold">Object details</h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <Field label="Name" value={object.name} />
-        <Field label="Key" value={object.key} />
-        <Field
-          label="Size"
-          value={`${formatSize(object.size)} (${object.size} bytes)`}
-        />
-        <Field
-          label="Last Modified"
-          value={formatDateTime(object.lastModified)}
-        />
-        {object.storageClass ? (
-          <Field label="Storage Class" value={object.storageClass} />
-        ) : null}
-        {object.etag ? <Field label="ETag" value={object.etag} /> : null}
-        <DownloadSection objectKey={object.key} />
-      </div>
-      <div className="border-border flex gap-2 border-t px-4 py-3">
-        <CopyButton value={object.key} label="Copy key" variant="outline" />
-      </div>
-    </div>
+    <Drawer.Root
+      open
+      onOpenChange={(event) => {
+        if (!event.open) {
+          onClose();
+        }
+      }}
+      placement="end"
+    >
+      <Portal>
+        <Drawer.Backdrop />
+        <Drawer.Positioner>
+          <Drawer.Content w={{ base: "50%", md: "33%" }} maxW="none">
+            <Drawer.Header>
+              <Drawer.Title>Object details</Drawer.Title>
+              <Drawer.CloseTrigger asChild>
+                <CloseButton size="sm" aria-label="Close" />
+              </Drawer.CloseTrigger>
+            </Drawer.Header>
+            <Drawer.Body>
+              <Stack gap="4">
+                <Field label="Name" value={object.name} />
+                <Field label="Key" value={object.key} />
+                <Field
+                  label="Size"
+                  value={`${formatSize(object.size)} (${object.size} bytes)`}
+                />
+                <Field
+                  label="Last Modified"
+                  value={formatDateTime(object.lastModified)}
+                />
+                {object.storageClass ? (
+                  <Field label="Storage Class" value={object.storageClass} />
+                ) : null}
+                {object.etag ? (
+                  <Field label="ETag" value={object.etag} />
+                ) : null}
+                <DownloadSection objectKey={object.key} />
+              </Stack>
+            </Drawer.Body>
+            <Drawer.Footer>
+              <CopyButton
+                value={object.key}
+                label="Copy key"
+                variant="outline"
+              />
+            </Drawer.Footer>
+          </Drawer.Content>
+        </Drawer.Positioner>
+      </Portal>
+    </Drawer.Root>
   );
 }

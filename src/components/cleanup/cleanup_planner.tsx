@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Search, Sparkles, Trash2 } from "lucide-react";
+import { Flex, Grid, Icon, Span, Stack } from "@chakra-ui/react";
 import type { CleanupCandidate, CleanupPlan } from "@/domain/s3/cleanup";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -139,40 +140,59 @@ export function CleanupPlanner({ buckets }: { buckets: string[] }) {
   }
 
   return (
-    <div className="space-y-5">
-      <Card className="space-y-4 p-4">
-        <CleanupScopeSelector
-          buckets={buckets}
-          bucket={bucket}
-          onBucketChange={setBucket}
-          disabled={scanning}
-        />
-        <CleanupScanOptions onChange={handleOptionsChange} />
-        <Button onClick={runScan} disabled={scanning}>
-          {scanning ? <Spinner /> : <Search className="h-4 w-4" />}
-          Scan for cleanup candidates
-        </Button>
+    <Stack gap="5">
+      <Card>
+        <Stack p="4" gap="4">
+          <CleanupScopeSelector
+            buckets={buckets}
+            bucket={bucket}
+            onBucketChange={setBucket}
+            disabled={scanning}
+          />
+          <CleanupScanOptions onChange={handleOptionsChange} />
+          <Button onClick={runScan} disabled={scanning} alignSelf="flex-start">
+            {scanning ? (
+              <Spinner size="sm" />
+            ) : (
+              <Icon size="sm" asChild>
+                <Search />
+              </Icon>
+            )}
+            Scan for cleanup candidates
+          </Button>
+        </Stack>
       </Card>
 
       {scanError ? <Alert variant="error">{scanError}</Alert> : null}
       {plan ? <CleanupWarnings warnings={plan.warnings} /> : null}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_18rem]">
-        <div className="space-y-3">
+      <Grid templateColumns={{ base: "1fr", lg: "1fr 18rem" }} gap="5">
+        <Stack gap="3">
           {selected.size > 0 ? (
-            <div className="bg-muted flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2">
-              <span className="text-sm">
+            <Flex
+              bg="bg.muted"
+              borderRadius="l2"
+              px="3"
+              py="2"
+              wrap="wrap"
+              align="center"
+              justify="space-between"
+              gap="2"
+            >
+              <Span fontSize="sm">
                 {selected.size} selected · {formatSize(selectedSize)}
-              </span>
+              </Span>
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={openDeleteSelected}
               >
-                <Trash2 className="h-4 w-4" />
+                <Icon size="sm" asChild>
+                  <Trash2 />
+                </Icon>
                 Delete selected
               </Button>
-            </div>
+            </Flex>
           ) : null}
 
           {plan && candidates.length === 0 ? (
@@ -194,14 +214,14 @@ export function CleanupPlanner({ buckets }: { buckets: string[] }) {
               onDeleteOne={openDeleteOne}
             />
           ) : null}
-        </div>
+        </Stack>
 
         <CleanupSummaryPanel
           summary={plan?.summary}
           selectedCount={selected.size}
           selectedSize={selectedSize}
         />
-      </div>
+      </Grid>
 
       <CleanupDeleteDialog
         open={deleteOpen}
@@ -209,6 +229,6 @@ export function CleanupPlanner({ buckets }: { buckets: string[] }) {
         onClose={() => setDeleteOpen(false)}
         onDeleted={onDeleted}
       />
-    </div>
+    </Stack>
   );
 }

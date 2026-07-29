@@ -1,7 +1,18 @@
 import { redirect } from "next/navigation";
 import { Plug, Puzzle } from "lucide-react";
+import {
+  Flex,
+  Heading,
+  HStack,
+  Icon,
+  Span,
+  Stack,
+  StackSeparator,
+  Text,
+} from "@chakra-ui/react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ThemeSelector } from "@/components/theme/theme_selector";
+import { PageHeader } from "@/components/ui/page_header";
+import { ColorModeSelector } from "@/components/theme/color_mode";
 import { DisconnectButton } from "@/components/s3/disconnect_button";
 import {
   createSessionStore,
@@ -10,7 +21,7 @@ import {
 import { formatDateTime } from "@/lib/date";
 
 export const metadata = {
-  title: "Settings - S3 Manager",
+  title: "Settings - Inari",
 };
 
 /** Masks all but the leading characters of an access key. */
@@ -23,10 +34,31 @@ function maskKeyId(value: string): string {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right break-all">{value}</span>
-    </div>
+    <Flex justify="space-between" gap="4" py="1.5" fontSize="sm">
+      <Span color="fg.muted">{label}</Span>
+      <Span textAlign="right" wordBreak="break-all">
+        {value}
+      </Span>
+    </Flex>
+  );
+}
+
+function SectionHeading({
+  icon: LeadingIcon,
+  children,
+}: {
+  icon: typeof Plug;
+  children: string;
+}) {
+  return (
+    <HStack gap="2">
+      <Icon size="md" color="brand.solid" asChild>
+        <LeadingIcon />
+      </Icon>
+      <Heading as="h2" size="md" fontFamily="heading" fontWeight="700">
+        {children}
+      </Heading>
+    </HStack>
   );
 }
 
@@ -39,28 +71,29 @@ export default async function SettingsPage() {
   const { connection, createdAt, lastUsedAt } = session;
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Settings</h1>
+    <Stack gap="5">
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Appearance</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <Heading as="h2" size="md" fontFamily="heading" fontWeight="700">
+            Appearance
+          </Heading>
+          <Text color="fg.muted" fontSize="sm" mt="1">
             Choose your theme. The product defaults to dark.
-          </p>
+          </Text>
         </CardHeader>
         <CardContent>
-          <ThemeSelector />
+          <ColorModeSelector />
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2">
-          <Plug className="text-primary h-5 w-5" />
-          <h2 className="font-semibold">Connection</h2>
+        <CardHeader>
+          <SectionHeading icon={Plug}>Connection</SectionHeading>
         </CardHeader>
         <CardContent>
-          <div className="divide-border divide-y">
+          <Stack gap="0" separator={<StackSeparator />}>
             <InfoRow label="Endpoint" value={connection.endpoint} />
             <InfoRow
               label="Access Key ID"
@@ -84,42 +117,50 @@ export default async function SettingsPage() {
               value={formatDateTime(createdAt)}
             />
             <InfoRow label="Last used" value={formatDateTime(lastUsedAt)} />
-          </div>
-          <p className="text-muted-foreground mt-3 text-xs">
-            The session is stored in an encrypted, http-only cookie and expires
-            with your browser session. The secret is never sent to the browser.
-          </p>
-          <div className="mt-4">
+          </Stack>
+          <Text color="fg.muted" fontSize="xs" mt="3">
+            The session is stored in an encrypted, http-only cookie. The secret
+            is never readable by scripts in your browser.
+          </Text>
+          <Stack mt="4" align="flex-start">
             <DisconnectButton />
-          </div>
+          </Stack>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2">
-          <Puzzle className="text-primary h-5 w-5" />
-          <h2 className="font-semibold">Provider Plugins</h2>
+        <CardHeader>
+          <SectionHeading icon={Puzzle}>Provider Plugins</SectionHeading>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {plugins.map((plugin) => (
-            <div
-              key={plugin.id}
-              className="border-border flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-            >
-              <span className="font-medium">{plugin.label}</span>
-              <span className="text-muted-foreground">
-                {plugin.isConfigured()
-                  ? "Configured"
-                  : `${plugin.label} plugin not configured`}
-              </span>
-            </div>
-          ))}
-          <p className="text-muted-foreground text-xs">
-            Provider plugins add vendor-specific admin features. Standard
-            features work without any plugin configured.
-          </p>
+        <CardContent>
+          <Stack gap="2">
+            {plugins.map((plugin) => (
+              <Flex
+                key={plugin.id}
+                borderWidth="1px"
+                borderColor="border"
+                borderRadius="l2"
+                px="3"
+                py="2"
+                fontSize="sm"
+                align="center"
+                justify="space-between"
+              >
+                <Span fontWeight="medium">{plugin.label}</Span>
+                <Span color="fg.muted">
+                  {plugin.isConfigured()
+                    ? "Configured"
+                    : `${plugin.label} plugin not configured`}
+                </Span>
+              </Flex>
+            ))}
+            <Text color="fg.muted" fontSize="xs">
+              Provider plugins add vendor-specific admin features. Standard
+              features work without any plugin configured.
+            </Text>
+          </Stack>
         </CardContent>
       </Card>
-    </div>
+    </Stack>
   );
 }

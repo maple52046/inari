@@ -1,8 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/cn";
+import { Switch as ChakraSwitch } from "@chakra-ui/react";
 
-/** Accessible on/off toggle backed by a native checkbox. */
+/** Accessible on/off toggle. */
 export function Switch({
   checked,
   onCheckedChange,
@@ -17,25 +17,17 @@ export function Switch({
   "aria-label"?: string;
 }) {
   return (
-    <button
-      type="button"
+    <ChakraSwitch.Root
       id={id}
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
+      checked={checked}
       disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={cn(
-        "focus-visible:ring-ring inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-input",
-      )}
+      onCheckedChange={(event) => onCheckedChange(event.checked)}
+      size="md"
     >
-      <span
-        className={cn(
-          "bg-background inline-block h-4 w-4 transform rounded-full shadow transition-transform",
-          checked ? "translate-x-4" : "translate-x-0.5",
-        )}
-      />
-    </button>
+      <ChakraSwitch.HiddenInput aria-label={ariaLabel} />
+      <ChakraSwitch.Control>
+        <ChakraSwitch.Thumb />
+      </ChakraSwitch.Control>
+    </ChakraSwitch.Root>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { Icon } from "@chakra-ui/react";
 import { Button } from "./button";
 import type { ButtonProps } from "./button";
 import { useToast } from "./toast";
@@ -29,11 +30,9 @@ export function CopyButton({
 
   return (
     <Button variant="ghost" size="sm" onClick={copy} {...props}>
-      {copied ? (
-        <Check className="text-primary h-4 w-4" />
-      ) : (
-        <Copy className="h-4 w-4" />
-      )}
+      <Icon size="sm" color={copied ? "brand.solid" : undefined} asChild>
+        {copied ? <Check /> : <Copy />}
+      </Icon>
       {label}
     </Button>
   );

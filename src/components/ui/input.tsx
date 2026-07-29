@@ -1,22 +1,7 @@
-import { forwardRef } from "react";
-import type { InputHTMLAttributes } from "react";
-import { cn } from "@/lib/cn";
+import { Input as ChakraInput } from "@chakra-ui/react";
+import type { InputProps as ChakraInputProps } from "@chakra-ui/react";
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement>;
+export type InputProps = ChakraInputProps;
 
-/** Text/number input styled with theme variables. */
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className, ...props },
-  ref,
-) {
-  return (
-    <input
-      ref={ref}
-      className={cn(
-        "border-input bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-ring h-10 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50",
-        className,
-      )}
-      {...props}
-    />
-  );
-});
+/** Text/number input styled by the theme. */
+export const Input = ChakraInput;

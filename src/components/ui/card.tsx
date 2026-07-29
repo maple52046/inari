@@ -1,37 +1,18 @@
-import type { HTMLAttributes } from "react";
-import { cn } from "@/lib/cn";
+import { Card as ChakraCard } from "@chakra-ui/react";
+import type { CardRootProps } from "@chakra-ui/react";
 
-/** Surface container using the card color tokens. */
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "border-border bg-card text-card-foreground rounded-lg border",
-        className,
-      )}
-      {...props}
-    />
-  );
+/**
+ * Surface container.
+ *
+ * Defaults to the elevated variant: before the Chakra migration every surface
+ * was a flat bordered box, which left pages with no visual hierarchy.
+ */
+export function Card(props: CardRootProps) {
+  return <ChakraCard.Root variant="elevated" {...props} />;
 }
 
 /** Padded title area for a card; pair with {@link CardContent}. */
-export function CardHeader({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-5", className)} {...props} />;
-}
+export const CardHeader = ChakraCard.Header;
 
-/**
- * Body of a card that already has a {@link CardHeader}.
- *
- * Drops its own top padding so the header supplies that gap. A card without a
- * header must therefore pad the {@link Card} itself instead of using this, since
- * `cn` only concatenates classes and cannot resolve the `pt-0` conflict.
- */
-export function CardContent({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-5 pt-0", className)} {...props} />;
-}
+/** Body of a card. */
+export const CardContent = ChakraCard.Body;

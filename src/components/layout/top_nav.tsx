@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Database, HardDrive, Settings, Sparkles } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { ThemeToggle } from "@/components/theme/theme_toggle";
+import { Box, Flex, HStack, Icon } from "@chakra-ui/react";
+import { BrandLockup } from "@/components/brand/brand_lockup";
+import { Button } from "@/components/ui/button";
+import { ColorModeToggle } from "@/components/theme/color_mode";
 
 const NAV_ITEMS = [
   { href: "/buckets", label: "Buckets", icon: Database },
@@ -17,43 +19,47 @@ const NAV_ITEMS = [
 export function TopNav() {
   const pathname = usePathname();
   return (
-    <header className="border-border bg-background/80 sticky top-0 z-30 border-b backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4">
-        <Link href="/buckets" className="flex items-center gap-2">
-          <Database className="text-primary h-5 w-5" />
-          <span className="hidden flex-col leading-tight sm:flex">
-            <span className="font-semibold">Inari</span>
-            <span className="text-muted-foreground text-xs">
-              Manage S3-compatible object storage.
-            </span>
-          </span>
+    <Box
+      as="header"
+      position="sticky"
+      top="0"
+      zIndex="30"
+      borderBottomWidth="1px"
+      borderColor="border"
+      bg="bg/80"
+      backdropFilter="blur(8px)"
+    >
+      <Flex mx="auto" maxW="7xl" h="14" align="center" gap="2" px="4">
+        <Link href="/buckets">
+          <BrandLockup withTagline />
         </Link>
-        <nav className="ml-4 flex items-center gap-1">
+        <HStack as="nav" ml="4" gap="1">
           {NAV_ITEMS.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon;
             return (
-              <Link
+              <Button
                 key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors sm:px-3",
-                  active
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
+                asChild
+                variant={active ? "subtle" : "ghost"}
+                size="sm"
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{item.label}</span>
-              </Link>
+                <Link href={item.href}>
+                  <Icon size="sm" asChild>
+                    <item.icon />
+                  </Icon>
+                  <Box as="span" display={{ base: "none", sm: "inline" }}>
+                    {item.label}
+                  </Box>
+                </Link>
+              </Button>
             );
           })}
-        </nav>
-        <div className="ml-auto">
-          <ThemeToggle />
-        </div>
-      </div>
-    </header>
+        </HStack>
+        <Box ml="auto">
+          <ColorModeToggle />
+        </Box>
+      </Flex>
+    </Box>
   );
 }

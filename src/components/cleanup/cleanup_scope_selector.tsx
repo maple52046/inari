@@ -1,9 +1,8 @@
 "use client";
 
+import { NativeSelect, SimpleGrid, Text } from "@chakra-ui/react";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const selectClass =
-  "h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
 /** Chooses the scan scope: all buckets or one bucket. Prefix is reserved. */
 export function CleanupScopeSelector({
@@ -18,36 +17,32 @@ export function CleanupScopeSelector({
   disabled: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <SimpleGrid columns={{ base: 1, sm: 2 }} gap="3">
       <div>
         <Label htmlFor="cleanup-bucket">Bucket</Label>
-        <select
-          id="cleanup-bucket"
-          value={bucket}
-          onChange={(event) => onBucketChange(event.target.value)}
-          disabled={disabled}
-          className={selectClass}
-        >
-          <option value="">All buckets</option>
-          {buckets.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+        <NativeSelect.Root disabled={disabled}>
+          <NativeSelect.Field
+            id="cleanup-bucket"
+            value={bucket}
+            onChange={(event) => onBucketChange(event.currentTarget.value)}
+          >
+            <option value="">All buckets</option>
+            {buckets.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </NativeSelect.Field>
+          <NativeSelect.Indicator />
+        </NativeSelect.Root>
       </div>
       <div>
         <Label htmlFor="cleanup-prefix">Prefix</Label>
-        <input
-          id="cleanup-prefix"
-          disabled
-          placeholder="Coming soon"
-          className={`${selectClass} cursor-not-allowed opacity-60`}
-        />
-        <p className="text-muted-foreground mt-1 text-xs">
+        <Input id="cleanup-prefix" disabled placeholder="Coming soon" />
+        <Text color="fg.muted" fontSize="xs" mt="1">
           Prefix-based cleanup is planned for a future version.
-        </p>
+        </Text>
       </div>
-    </div>
+    </SimpleGrid>
   );
 }

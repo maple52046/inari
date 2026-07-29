@@ -1,3 +1,4 @@
+import { Box, Container } from "@chakra-ui/react";
 import { redirect } from "next/navigation";
 import { TopNav } from "@/components/layout/top_nav";
 import { createSessionStore } from "@/infrastructure/composition";
@@ -18,9 +19,11 @@ export default async function AppLayout({
     redirect("/connect");
   }
   return (
-    <div className="min-h-screen">
+    <Box minH="100vh">
       <TopNav />
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
-    </div>
+      <Container as="main" maxW="7xl" px="4" py="6">
+        {children}
+      </Container>
+    </Box>
   );
 }

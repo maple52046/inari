@@ -2,6 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { Trash2, TriangleAlert } from "lucide-react";
+import {
+  Box,
+  Flex,
+  HStack,
+  Icon,
+  List,
+  Span,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { CleanupCandidate } from "@/domain/s3/cleanup";
 import type { CleanupBucketDeleteResult } from "@/application/delete_cleanup";
 import { Modal } from "@/components/ui/modal";
@@ -108,7 +118,13 @@ export function CleanupDeleteDialog({
               onClick={runDelete}
               disabled={!confirmed || deleting}
             >
-              {deleting ? <Spinner /> : <Trash2 className="h-4 w-4" />}
+              {deleting ? (
+                <Spinner size="sm" />
+              ) : (
+                <Icon size="sm" asChild>
+                  <Trash2 />
+                </Icon>
+              )}
               Delete {targets.length}
             </Button>
           </>
@@ -116,74 +132,111 @@ export function CleanupDeleteDialog({
       }
     >
       {results ? (
-        <div className="space-y-2 text-sm">
+        <Stack gap="2" fontSize="sm">
           {results.map((bucketResult) => (
-            <div
+            <Box
               key={bucketResult.bucket}
-              className="border-border rounded-md border px-3 py-2"
+              borderWidth="1px"
+              borderColor="border"
+              borderRadius="l2"
+              px="3"
+              py="2"
             >
-              <p className="font-medium">{bucketResult.bucket}</p>
-              <p className="text-muted-foreground text-xs">
+              <Text fontWeight="medium">{bucketResult.bucket}</Text>
+              <Text color="fg.muted" fontSize="xs">
                 Deleted {bucketResult.deleted.length}, failed{" "}
                 {bucketResult.failed.length}
-              </p>
+              </Text>
               {bucketResult.failed.length > 0 ? (
-                <ul className="text-destructive mt-1 max-h-24 space-y-0.5 overflow-y-auto font-mono text-xs">
+                <List.Root
+                  variant="plain"
+                  color="fg.error"
+                  mt="1"
+                  maxH="24"
+                  overflowY="auto"
+                  fontFamily="mono"
+                  fontSize="xs"
+                  gap="0.5"
+                >
                   {bucketResult.failed.map((failure) => (
-                    <li key={failure.key}>
+                    <List.Item key={failure.key}>
                       {failure.key} - {failure.message}
-                    </li>
+                    </List.Item>
                   ))}
-                </ul>
+                </List.Root>
               ) : null}
-            </div>
+            </Box>
           ))}
-        </div>
+        </Stack>
       ) : (
-        <div className="space-y-4 text-sm">
-          <div className="bg-muted flex items-start gap-2 rounded-md px-3 py-2">
-            <TriangleAlert className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-            <p>
+        <Stack gap="4" fontSize="sm">
+          <HStack
+            align="flex-start"
+            gap="2"
+            bg="bg.muted"
+            px="3"
+            py="2"
+            borderRadius="l2"
+          >
+            <Icon size="sm" color="fg.error" mt="0.5" asChild>
+              <TriangleAlert />
+            </Icon>
+            <Text>
               You are about to delete{" "}
-              <span className="font-medium">{targets.length}</span> object
+              <Span fontWeight="medium">{targets.length}</Span> object
               {targets.length === 1 ? "" : "s"}. Estimated freed space:{" "}
-              <span className="font-medium">{formatSize(totalSize)}</span>. This
+              <Span fontWeight="medium">{formatSize(totalSize)}</Span>. This
               action may be irreversible.
-            </p>
-          </div>
+            </Text>
+          </HStack>
 
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">
+          <Box>
+            <Text color="fg.muted" fontSize="xs" mb="1">
               Buckets affected:
-            </p>
-            <ul className="border-border max-h-40 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
+            </Text>
+            <List.Root
+              variant="plain"
+              maxH="40"
+              overflowY="auto"
+              borderWidth="1px"
+              borderColor="border"
+              borderRadius="l2"
+              p="2"
+              fontSize="xs"
+              gap="1"
+            >
               {groups.map((group) => (
-                <li key={group.bucket} className="flex justify-between gap-2">
-                  <span className="font-mono">{group.bucket}</span>
-                  <span className="text-muted-foreground">
-                    {group.count} object{group.count === 1 ? "" : "s"},{" "}
-                    {formatSize(group.size)}
-                  </span>
-                </li>
+                <List.Item key={group.bucket}>
+                  <Flex justify="space-between" gap="2" width="full">
+                    <Span fontFamily="mono">{group.bucket}</Span>
+                    <Span color="fg.muted">
+                      {group.count} object{group.count === 1 ? "" : "s"},{" "}
+                      {formatSize(group.size)}
+                    </Span>
+                  </Flex>
+                </List.Item>
               ))}
-            </ul>
-          </div>
+            </List.Root>
+          </Box>
 
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">
-              Type <span className="font-mono font-semibold">DELETE</span> to
-              confirm:
-            </p>
+          <Box>
+            <Text color="fg.muted" fontSize="xs" mb="1">
+              Type{" "}
+              <Span fontFamily="mono" fontWeight="semibold">
+                DELETE
+              </Span>{" "}
+              to confirm:
+            </Text>
             <Input
               value={confirmText}
               onChange={(event) => setConfirmText(event.target.value)}
               placeholder="DELETE"
               autoComplete="off"
             />
-          </div>
+          </Box>
 
           {error ? <Alert variant="error">{error}</Alert> : null}
-        </div>
+        </Stack>
       )}
     </Modal>
   );

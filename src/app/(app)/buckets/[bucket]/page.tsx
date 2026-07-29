@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { Stack } from "@chakra-ui/react";
 import { StorageError, storageErrorMessage } from "@/domain/s3/errors";
 import type { ObjectListPage } from "@/domain/s3/models";
 import { listObjects } from "@/application/list_objects";
@@ -8,6 +9,7 @@ import {
 } from "@/infrastructure/composition";
 import { ObjectBrowser } from "@/components/s3/object_browser";
 import { Alert } from "@/components/ui/alert";
+import { PageHeader } from "@/components/ui/page_header";
 import {
   DOWNLOAD_COOKIE,
   parseDownloadPreference,
@@ -52,10 +54,10 @@ export default async function BucketPage({
 
   if (!page) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-semibold">{bucket}</h1>
+      <Stack gap="4">
+        <PageHeader title={bucket} />
         <Alert variant="error">{error ?? "Failed to load objects"}</Alert>
-      </div>
+      </Stack>
     );
   }
 

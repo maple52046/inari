@@ -1,5 +1,7 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
+import { Breadcrumb, Icon, IconButton, Wrap } from "@chakra-ui/react";
 import { CopyButton } from "@/components/ui/copy_button";
 
 interface Crumb {
@@ -39,32 +41,52 @@ export function ObjectBreadcrumbs({
   // pasted into a chat or an `aws s3` command, not into a URL.
   const s3Uri = `s3://${bucket}/${prefix}`;
   return (
-    <nav className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-      {/* A styled link, not a Button: an interactive element inside an anchor is
-          invalid markup, and this crumb is plain navigation. */}
-      <Link
-        href="/buckets"
+    <Wrap align="center" gap="1">
+      <IconButton
+        asChild
+        variant="ghost"
+        size="sm"
         aria-label="Go to bucket list"
         title="All buckets"
-        className="hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
       >
-        <Home className="h-4 w-4" />
-      </Link>
-      {crumbs.map((crumb, index) => {
-        const isLast = index === crumbs.length - 1;
-        return (
-          <span key={crumb.href} className="flex items-center gap-1">
-            {index > 0 ? <ChevronRight className="h-3.5 w-3.5" /> : null}
-            {isLast ? (
-              <span className="text-foreground font-medium">{crumb.label}</span>
-            ) : (
-              <Link href={crumb.href} className="hover:text-foreground">
-                {crumb.label}
-              </Link>
-            )}
-          </span>
-        );
-      })}
+        <Link href="/buckets">
+          <Icon size="sm" asChild>
+            <Home />
+          </Icon>
+        </Link>
+      </IconButton>
+      <Breadcrumb.Root size="sm">
+        <Breadcrumb.List>
+          {crumbs.map((crumb, index) => {
+            const isLast = index === crumbs.length - 1;
+            // Item and Separator both render an <li>, so the separator has to be
+            // the Item's sibling. Nesting it inside the Item makes the browser
+            // auto-close the outer <li> and hydration then mismatches.
+            return (
+              <Fragment key={crumb.href}>
+                {index > 0 ? (
+                  <Breadcrumb.Separator>
+                    <Icon size="xs" asChild>
+                      <ChevronRight />
+                    </Icon>
+                  </Breadcrumb.Separator>
+                ) : null}
+                <Breadcrumb.Item>
+                  {isLast ? (
+                    <Breadcrumb.CurrentLink fontWeight="medium">
+                      {crumb.label}
+                    </Breadcrumb.CurrentLink>
+                  ) : (
+                    <Breadcrumb.Link asChild>
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    </Breadcrumb.Link>
+                  )}
+                </Breadcrumb.Item>
+              </Fragment>
+            );
+          })}
+        </Breadcrumb.List>
+      </Breadcrumb.Root>
       <CopyButton
         value={s3Uri}
         label=""
@@ -72,6 +94,6 @@ export function ObjectBreadcrumbs({
         aria-label={`Copy path ${s3Uri}`}
         title="Copy path"
       />
-    </nav>
+    </Wrap>
   );
 }

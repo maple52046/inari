@@ -9,6 +9,17 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import {
+  Box,
+  Flex,
+  HStack,
+  Icon,
+  InputGroup,
+  NativeSelect,
+  Stack,
+  Text,
+  Wrap,
+} from "@chakra-ui/react";
 import type { ObjectFilter, SortKey, SortSpec } from "@/lib/object_filtering";
 import type { DownloadMode, PresignExpiry } from "@/lib/download_preference";
 import { EXPIRY_OPTIONS } from "@/lib/download_preference";
@@ -37,9 +48,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "size", label: "Size" },
   { value: "lastModified", label: "Last Modified" },
 ];
-
-const selectClass =
-  "h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
 interface ObjectToolbarProps {
   sort: SortSpec;
@@ -108,194 +116,253 @@ export function ObjectToolbar({
   }
 
   return (
-    <div className="border-border bg-card space-y-3 rounded-lg border p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[12rem] flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search loaded objects"
-            className="pl-9"
-            aria-label="Search loaded objects"
-          />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <select
-            value={sort.key}
-            onChange={(event) =>
-              onSortChange({
-                key: event.target.value as SortKey,
-                direction: sort.direction,
-              })
+    <Box
+      borderWidth="1px"
+      borderColor="border"
+      bg="bg.panel"
+      borderRadius="l3"
+      p="3"
+      shadow="xs"
+    >
+      <Stack gap="3">
+        <Wrap align="center" gap="2">
+          <InputGroup
+            flex="1"
+            minW="12rem"
+            startElement={
+              <Icon size="sm" color="fg.muted" asChild>
+                <Search />
+              </Icon>
             }
-            className={selectClass}
-            aria-label="Sort by"
           >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleDirection}
-            aria-label={`Sort ${sort.direction === "asc" ? "ascending" : "descending"}`}
-            title={sort.direction === "asc" ? "Ascending" : "Descending"}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onRefresh}
-          aria-label="Refresh"
-          title="Refresh"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3 text-sm">
-        <FilterGroup label="Min size">
-          <Input
-            value={minValue}
-            onChange={(event) => setMinValue(event.target.value)}
-            inputMode="decimal"
-            placeholder="0"
-            className="w-20"
-            aria-label="Minimum size"
-          />
-          <select
-            value={minUnit}
-            onChange={(event) => setMinUnit(event.target.value)}
-            className={selectClass}
-            aria-label="Minimum size unit"
-          >
-            {Object.keys(SIZE_UNITS).map((unit) => (
-              <option key={unit}>{unit}</option>
-            ))}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Max size">
-          <Input
-            value={maxValue}
-            onChange={(event) => setMaxValue(event.target.value)}
-            inputMode="decimal"
-            placeholder="∞"
-            className="w-20"
-            aria-label="Maximum size"
-          />
-          <select
-            value={maxUnit}
-            onChange={(event) => setMaxUnit(event.target.value)}
-            className={selectClass}
-            aria-label="Maximum size unit"
-          >
-            {Object.keys(SIZE_UNITS).map((unit) => (
-              <option key={unit}>{unit}</option>
-            ))}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Modified after">
-          <Input
-            type="date"
-            value={after}
-            onChange={(event) => setAfter(event.target.value)}
-            aria-label="Modified after"
-          />
-        </FilterGroup>
-
-        <FilterGroup label="Modified before">
-          <Input
-            type="date"
-            value={before}
-            onChange={(event) => setBefore(event.target.value)}
-            aria-label="Modified before"
-          />
-        </FilterGroup>
-      </div>
-
-      <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-        {/* Keeping the switch flush right holds its position across modes, so
-            enabling presigned URLs does not shift the control the user just hit. */}
-        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
-          {/* Hidden below md: the column it controls only exists in the table
-              view, and the card view never renders a storage class. */}
-          <div className="hidden items-center gap-2 md:flex">
-            <Archive className="text-muted-foreground h-4 w-4" />
-            <label htmlFor="storage-class-switch" className="font-medium">
-              Storage Class
-            </label>
-            <Switch
-              id="storage-class-switch"
-              checked={showStorageClass}
-              onCheckedChange={onShowStorageClassChange}
-              aria-label="Show the Storage Class column"
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search loaded objects"
+              aria-label="Search loaded objects"
             />
-          </div>
+          </InputGroup>
 
-          {downloadMode === "presigned" ? (
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="expiry-select"
-                className="text-muted-foreground text-xs"
-              >
-                Expires in
-              </label>
-              <select
-                id="expiry-select"
-                value={expiry}
+          <HStack gap="1">
+            <NativeSelect.Root width="auto">
+              <NativeSelect.Field
+                value={sort.key}
                 onChange={(event) =>
-                  onExpiryChange(Number(event.target.value) as PresignExpiry)
+                  onSortChange({
+                    key: event.currentTarget.value as SortKey,
+                    direction: sort.direction,
+                  })
                 }
-                className={selectClass}
+                aria-label="Sort by"
               >
-                {EXPIRY_OPTIONS.map((option) => (
+                {SORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
-            </div>
-          ) : null}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleDirection}
+              aria-label={`Sort ${sort.direction === "asc" ? "ascending" : "descending"}`}
+              title={sort.direction === "asc" ? "Ascending" : "Descending"}
+            >
+              <Icon size="sm" asChild>
+                <ArrowUpDown />
+              </Icon>
+            </Button>
+          </HStack>
 
-          <div className="flex items-center gap-2">
-            <KeyRound className="text-muted-foreground h-4 w-4" />
-            <label htmlFor="presigned-switch" className="font-medium">
-              Presigned URL
-            </label>
-            <Switch
-              id="presigned-switch"
-              checked={downloadMode === "presigned"}
-              onCheckedChange={(checked) =>
-                onDownloadModeChange(checked ? "presigned" : "direct")
-              }
-              aria-label="Use presigned download URLs"
-            />
-          </div>
-        </div>
-      </div>
-
-      {selectedCount > 0 ? (
-        <div className="bg-muted flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2">
-          <span className="text-sm">
-            {selectedCount} selected · {formatSize(selectedSize)}
-          </span>
-          <Button variant="destructive" size="sm" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
-            Delete selected
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onRefresh}
+            aria-label="Refresh"
+            title="Refresh"
+          >
+            <Icon size="sm" asChild>
+              <RefreshCw />
+            </Icon>
           </Button>
-        </div>
-      ) : null}
-    </div>
+        </Wrap>
+
+        <Wrap align="flex-end" gap="3" fontSize="sm">
+          <FilterGroup label="Min size">
+            <Input
+              value={minValue}
+              onChange={(event) => setMinValue(event.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+              width="20"
+              aria-label="Minimum size"
+            />
+            <UnitSelect
+              value={minUnit}
+              onChange={setMinUnit}
+              label="Minimum size unit"
+            />
+          </FilterGroup>
+
+          <FilterGroup label="Max size">
+            <Input
+              value={maxValue}
+              onChange={(event) => setMaxValue(event.target.value)}
+              inputMode="decimal"
+              placeholder="∞"
+              width="20"
+              aria-label="Maximum size"
+            />
+            <UnitSelect
+              value={maxUnit}
+              onChange={setMaxUnit}
+              label="Maximum size unit"
+            />
+          </FilterGroup>
+
+          <FilterGroup label="Modified after">
+            <Input
+              type="date"
+              value={after}
+              onChange={(event) => setAfter(event.target.value)}
+              aria-label="Modified after"
+            />
+          </FilterGroup>
+
+          <FilterGroup label="Modified before">
+            <Input
+              type="date"
+              value={before}
+              onChange={(event) => setBefore(event.target.value)}
+              aria-label="Modified before"
+            />
+          </FilterGroup>
+        </Wrap>
+
+        <Flex
+          borderTopWidth="1px"
+          borderColor="border"
+          pt="3"
+          fontSize="sm"
+          wrap="wrap"
+          align="center"
+        >
+          {/* Keeping the switch flush right holds its position across modes, so
+              enabling presigned URLs does not shift the control the user just hit. */}
+          <Wrap ml="auto" align="center" gapX="4" gapY="2">
+            {/* Hidden below md: the column it controls only exists in the table
+                view, and the card view never renders a storage class. */}
+            <HStack gap="2" display={{ base: "none", md: "flex" }}>
+              <Icon size="sm" color="fg.muted" asChild>
+                <Archive />
+              </Icon>
+              <Text asChild fontWeight="medium">
+                <label htmlFor="storage-class-switch">Storage Class</label>
+              </Text>
+              <Switch
+                id="storage-class-switch"
+                checked={showStorageClass}
+                onCheckedChange={onShowStorageClassChange}
+                aria-label="Show the Storage Class column"
+              />
+            </HStack>
+
+            {downloadMode === "presigned" ? (
+              <HStack gap="2">
+                <Text asChild color="fg.muted" fontSize="xs">
+                  <label htmlFor="expiry-select">Expires in</label>
+                </Text>
+                <NativeSelect.Root width="auto" size="sm">
+                  <NativeSelect.Field
+                    id="expiry-select"
+                    value={expiry}
+                    onChange={(event) =>
+                      onExpiryChange(
+                        Number(event.currentTarget.value) as PresignExpiry,
+                      )
+                    }
+                  >
+                    {EXPIRY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </NativeSelect.Field>
+                  <NativeSelect.Indicator />
+                </NativeSelect.Root>
+              </HStack>
+            ) : null}
+
+            <HStack gap="2">
+              <Icon size="sm" color="fg.muted" asChild>
+                <KeyRound />
+              </Icon>
+              <Text asChild fontWeight="medium">
+                <label htmlFor="presigned-switch">Presigned URL</label>
+              </Text>
+              <Switch
+                id="presigned-switch"
+                checked={downloadMode === "presigned"}
+                onCheckedChange={(checked) =>
+                  onDownloadModeChange(checked ? "presigned" : "direct")
+                }
+                aria-label="Use presigned download URLs"
+              />
+            </HStack>
+          </Wrap>
+        </Flex>
+
+        {selectedCount > 0 ? (
+          <Flex
+            bg="bg.muted"
+            borderRadius="l2"
+            px="3"
+            py="2"
+            wrap="wrap"
+            align="center"
+            justify="space-between"
+            gap="2"
+          >
+            <Text fontSize="sm">
+              {selectedCount} selected · {formatSize(selectedSize)}
+            </Text>
+            <Button variant="destructive" size="sm" onClick={onDelete}>
+              <Icon size="sm" asChild>
+                <Trash2 />
+              </Icon>
+              Delete selected
+            </Button>
+          </Flex>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
+function UnitSelect({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <NativeSelect.Root width="auto">
+      <NativeSelect.Field
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        aria-label={label}
+      >
+        {Object.keys(SIZE_UNITS).map((unit) => (
+          <option key={unit}>{unit}</option>
+        ))}
+      </NativeSelect.Field>
+      <NativeSelect.Indicator />
+    </NativeSelect.Root>
   );
 }
 
@@ -307,9 +374,11 @@ function FilterGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <p className="text-muted-foreground mb-1 text-xs">{label}</p>
-      <div className="flex items-center gap-1">{children}</div>
-    </div>
+    <Box>
+      <Text color="fg.muted" fontSize="xs" mb="1">
+        {label}
+      </Text>
+      <HStack gap="1">{children}</HStack>
+    </Box>
   );
 }

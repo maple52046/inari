@@ -8,7 +8,7 @@ provider；MinIO 相關能力保留為未來 plugin 擴充。
 
 ## 功能
 
-- 以 server-side encrypted session 保存 S3 連線資訊，Secret 不寫入
+- 以只有 server 能解密的 sealed cookie session 保存 S3 連線資訊，Secret 不寫入
   browser `localStorage`。
 - 列出 buckets、prefixes 與 objects。
 - Object browser 支援 prefix navigation、pagination、size/date filter、
@@ -26,7 +26,8 @@ provider；MinIO 相關能力保留為未來 plugin 擴充。
 - React Server Components / Server Actions
 - TypeScript strict mode
 - AWS SDK for JavaScript v3 (`@aws-sdk/client-s3`)
-- Tailwind CSS
+- Chakra UI v3 (`@chakra-ui/react`, `@emotion/react`)
+- `next-themes` for light/dark colour mode
 - `iron-session`
 - `zod`
 - Vitest
@@ -185,8 +186,8 @@ kubectl -n inari rollout status deploy/inari
 
 ## 安全注意事項
 
-- S3 Secret 只保存在 server-side encrypted session，不寫入 DB 或 browser
-  storage。
+- S3 Secret 只保存在 sealed cookie session（`httpOnly`，以 `SESSION_SECRET`
+  加密，只有 server 能解密），不寫入 DB，也不寫入 browser 可讀取的 storage。
 - `.env.local` 被 `.gitignore` 忽略，不要提交真實 secrets。
 - Delete action 一律需要使用者確認並輸入 `DELETE`。
 - Cleanup Planner 會先產生 candidates 與可釋放空間估算，不會自動刪除。

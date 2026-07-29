@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, FileQuestion, HardDrive } from "lucide-react";
 import Link from "next/link";
+import { Box, Flex, Icon, Span, Stack } from "@chakra-ui/react";
 import type {
   CommonPrefix,
   DeleteResult,
@@ -218,17 +219,18 @@ export function ObjectBrowser({
       forcePathStyle={forcePathStyle}
       bucket={bucket}
     >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <Stack gap="4">
+        <Flex wrap="wrap" align="center" justify="space-between" gap="3">
           <ObjectBreadcrumbs bucket={bucket} prefix={prefix} />
-          <Link
-            href={`/admin/usage?bucket=${encodeURIComponent(bucket)}`}
-            className="border-border hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm"
-          >
-            <HardDrive className="h-4 w-4" />
-            Scan usage
-          </Link>
-        </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/usage?bucket=${encodeURIComponent(bucket)}`}>
+              <Icon size="sm" asChild>
+                <HardDrive />
+              </Icon>
+              Scan usage
+            </Link>
+          </Button>
+        </Flex>
 
         <ObjectToolbar
           sort={sort}
@@ -254,7 +256,7 @@ export function ObjectBrowser({
           />
         ) : (
           <>
-            <div className="hidden md:block">
+            <Box display={{ base: "none", md: "block" }}>
               <ObjectTable
                 bucket={bucket}
                 prefixes={prefixes}
@@ -267,8 +269,8 @@ export function ObjectBrowser({
                 onOpenDetail={setDetail}
                 onDeleteOne={openDeleteOne}
               />
-            </div>
-            <div className="md:hidden">
+            </Box>
+            <Box display={{ base: "block", md: "none" }}>
               <ObjectCardList
                 bucket={bucket}
                 prefixes={prefixes}
@@ -278,17 +280,22 @@ export function ObjectBrowser({
                 onOpenDetail={setDetail}
                 onDeleteOne={openDeleteOne}
               />
-            </div>
+            </Box>
           </>
         )}
 
         {loadError ? <Alert variant="error">{loadError}</Alert> : null}
 
-        <div className="text-muted-foreground flex items-center justify-between text-sm">
-          <span>
+        <Flex
+          color="fg.muted"
+          fontSize="sm"
+          align="center"
+          justify="space-between"
+        >
+          <Span>
             {visible.length} of {objects.length} loaded object
             {objects.length === 1 ? "" : "s"} shown
-          </span>
+          </Span>
           {token ? (
             <Button
               variant="subtle"
@@ -296,11 +303,17 @@ export function ObjectBrowser({
               onClick={loadMore}
               disabled={loadingMore}
             >
-              {loadingMore ? <Spinner /> : <ChevronDown className="h-4 w-4" />}
+              {loadingMore ? (
+                <Spinner size="sm" />
+              ) : (
+                <Icon size="sm" asChild>
+                  <ChevronDown />
+                </Icon>
+              )}
               Load more
             </Button>
           ) : null}
-        </div>
+        </Flex>
 
         {detail ? (
           <ObjectDetailDrawer
@@ -316,7 +329,7 @@ export function ObjectBrowser({
           onClose={() => setDeleteOpen(false)}
           onDeleted={onDeleted}
         />
-      </div>
+      </Stack>
     </DownloadLinkProvider>
   );
 }

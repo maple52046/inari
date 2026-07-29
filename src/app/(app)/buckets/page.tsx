@@ -1,12 +1,14 @@
+import { Stack } from "@chakra-ui/react";
 import { StorageError, storageErrorMessage } from "@/domain/s3/errors";
 import type { BucketSummary } from "@/domain/s3/models";
 import { listBuckets } from "@/application/list_buckets";
 import { requireStorage } from "@/infrastructure/composition";
 import { BucketList } from "@/components/s3/bucket_list";
 import { Alert } from "@/components/ui/alert";
+import { PageHeader } from "@/components/ui/page_header";
 
 export const metadata = {
-  title: "Buckets - S3 Manager",
+  title: "Buckets - Inari",
 };
 
 export default async function BucketsPage() {
@@ -24,20 +26,20 @@ export default async function BucketsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Buckets</h1>
-        {buckets ? (
-          <p className="text-muted-foreground text-sm">
-            {buckets.length} bucket{buckets.length === 1 ? "" : "s"} accessible.
-          </p>
-        ) : null}
-      </div>
+    <Stack gap="5">
+      <PageHeader
+        title="Buckets"
+        description={
+          buckets
+            ? `${buckets.length} bucket${buckets.length === 1 ? "" : "s"} accessible.`
+            : undefined
+        }
+      />
       {error ? (
         <Alert variant="error">{error}</Alert>
       ) : (
         <BucketList buckets={buckets ?? []} />
       )}
-    </div>
+    </Stack>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import { Clock, Copy, ExternalLink, TriangleAlert } from "lucide-react";
+import { HStack, Icon, Span } from "@chakra-ui/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/cn";
 import { useDownloadLinks } from "./download_link_context";
 
 function expiryLabel(expiresAt: number | undefined): string {
@@ -39,7 +39,9 @@ export function OpenLinkButton({ objectKey }: { objectKey: string }) {
       aria-label="Open download link"
       title="Open link"
     >
-      <ExternalLink className="h-4 w-4" />
+      <Icon size="sm" asChild>
+        <ExternalLink />
+      </Icon>
     </Button>
   );
 }
@@ -68,10 +70,15 @@ export function DownloadLinkActions({
   const disabled = link.status === "loading";
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <HStack minW="0" gap="1">
       {showUrl ? (
-        <span
-          className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs"
+        <Span
+          color="fg.muted"
+          minW="0"
+          flex="1"
+          truncate
+          fontFamily="mono"
+          fontSize="xs"
           title={link.url ?? undefined}
         >
           {link.status === "loading"
@@ -81,26 +88,31 @@ export function DownloadLinkActions({
               : link.status === "idle"
                 ? "—"
                 : (link.url ?? "")}
-        </span>
+        </Span>
       ) : null}
 
       {link.mode === "presigned" && link.status === "ready" ? (
-        <span
-          className={cn(
-            "text-muted-foreground flex items-center gap-0.5 text-xs whitespace-nowrap",
-          )}
+        <HStack
+          gap="0.5"
+          color="fg.muted"
+          fontSize="xs"
+          whiteSpace="nowrap"
           title="Presigned URL expiry"
         >
-          <Clock className="h-3 w-3" />
+          <Icon size="xs" asChild>
+            <Clock />
+          </Icon>
           {expiryLabel(link.expiresAt)}
-        </span>
+        </HStack>
       ) : null}
 
       {link.status === "loading" ? (
-        <Spinner className="text-muted-foreground" />
+        <Spinner size="sm" color="fg.muted" />
       ) : null}
       {link.status === "error" ? (
-        <TriangleAlert className="text-destructive h-4 w-4" />
+        <Icon size="sm" color="fg.error" asChild>
+          <TriangleAlert />
+        </Icon>
       ) : null}
 
       <Button
@@ -111,9 +123,11 @@ export function DownloadLinkActions({
         aria-label="Copy download link"
         title="Copy link"
       >
-        <Copy className="h-4 w-4" />
+        <Icon size="sm" asChild>
+          <Copy />
+        </Icon>
       </Button>
       {showOpen ? <OpenLinkButton objectKey={objectKey} /> : null}
-    </div>
+    </HStack>
   );
 }

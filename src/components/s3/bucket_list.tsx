@@ -3,6 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Database, Search } from "lucide-react";
+import {
+  Box,
+  HStack,
+  Icon,
+  InputGroup,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { BucketSummary } from "@/domain/s3/models";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -23,17 +32,22 @@ export function BucketList({ buckets }: { buckets: BucketSummary[] }) {
   }, [buckets, query]);
 
   return (
-    <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+    <Stack gap="4">
+      <InputGroup
+        maxW="sm"
+        startElement={
+          <Icon size="sm" color="fg.muted" asChild>
+            <Search />
+          </Icon>
+        }
+      >
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search buckets"
-          className="pl-9"
           aria-label="Search buckets"
         />
-      </div>
+      </InputGroup>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -46,27 +60,37 @@ export function BucketList({ buckets }: { buckets: BucketSummary[] }) {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap="3">
           {filtered.map((bucket) => (
             <Link
               key={bucket.name}
               href={`/buckets/${encodeURIComponent(bucket.name)}`}
             >
-              <Card className="hover:border-primary hover:bg-accent flex items-center gap-3 p-4 transition-colors">
-                <Database className="text-primary h-5 w-5 shrink-0" />
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{bucket.name}</p>
-                  {bucket.createdAt ? (
-                    <p className="text-muted-foreground text-xs">
-                      Created {formatDateTime(bucket.createdAt)}
-                    </p>
-                  ) : null}
-                </div>
+              <Card
+                height="full"
+                transition="borderColor 0.15s, background 0.15s"
+                _hover={{ borderColor: "brand.solid", bg: "bg.subtle" }}
+              >
+                <HStack gap="3" p="4" align="center">
+                  <Icon size="md" color="brand.solid" flexShrink="0" asChild>
+                    <Database />
+                  </Icon>
+                  <Box minW="0">
+                    <Text truncate fontWeight="medium">
+                      {bucket.name}
+                    </Text>
+                    {bucket.createdAt ? (
+                      <Text color="fg.muted" fontSize="xs">
+                        Created {formatDateTime(bucket.createdAt)}
+                      </Text>
+                    ) : null}
+                  </Box>
+                </HStack>
               </Card>
             </Link>
           ))}
-        </div>
+        </SimpleGrid>
       )}
-    </div>
+    </Stack>
   );
 }

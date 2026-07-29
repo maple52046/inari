@@ -1,28 +1,28 @@
-import "./globals.css";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { ThemeProvider } from "@/components/theme/theme_provider";
-import { ToastProvider } from "@/components/ui/toast";
-import { isInitialDark, parseTheme, THEME_COOKIE } from "@/lib/theme";
+import { AppProvider } from "@/components/providers/app_provider";
+import { display, mono, sans } from "./fonts";
 
 export const metadata: Metadata = {
   title: "Inari",
   description: "Manage S3-compatible object storage.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const preference = parseTheme(cookieStore.get(THEME_COOKIE)?.value);
   return (
-    <html lang="en" className={isInitialDark(preference) ? "dark" : ""}>
-      <body className="min-h-screen font-sans antialiased">
-        <ThemeProvider initialPreference={preference}>
-          <ToastProvider>{children}</ToastProvider>
-        </ThemeProvider>
+    // suppressHydrationWarning is required by next-themes: it writes the colour
+    // mode class onto <html> before React hydrates, so the server and client
+    // markup necessarily differ on this element.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${sans.variable} ${display.variable} ${mono.variable}`}
+    >
+      <body>
+        <AppProvider>{children}</AppProvider>
       </body>
     </html>
   );

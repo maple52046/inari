@@ -2,6 +2,15 @@
 
 import Link from "next/link";
 import { File, Folder, Trash2 } from "lucide-react";
+import {
+  Box,
+  Checkbox,
+  HStack,
+  Icon,
+  Span,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,65 +46,78 @@ export function ObjectCardList({
   onDeleteOne,
 }: ObjectCardListProps) {
   return (
-    <div className="space-y-2">
+    <Stack gap="2">
       {prefixes.map((entry) => (
         <Link key={entry.prefix} href={prefixHref(bucket, entry.prefix)}>
-          <Card className="hover:border-primary flex items-center gap-2 p-3">
-            <Folder className="text-primary h-5 w-5" />
-            <span className="font-medium">{entry.name}/</span>
+          <Card _hover={{ borderColor: "brand.solid" }}>
+            <HStack gap="2" p="3">
+              <Icon size="md" color="brand.solid" asChild>
+                <Folder />
+              </Icon>
+              <Span fontWeight="medium">{entry.name}/</Span>
+            </HStack>
           </Card>
         </Link>
       ))}
       {objects.map((object) => (
-        <Card key={object.key} className="p-3">
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={selected.has(object.key)}
-              onChange={() => onToggle(object.key)}
-              aria-label={`Select ${object.name}`}
-              className="mt-1 h-4 w-4 accent-[var(--color-primary)]"
-            />
-            <button
-              type="button"
-              onClick={() => onOpenDetail(object)}
-              className="min-w-0 flex-1 text-left"
-              title={object.key}
-            >
-              <div className="flex items-center gap-2">
-                <File className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span className="truncate font-mono text-sm">
-                  {truncateMiddle(object.name, 36)}
-                </span>
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {formatSize(object.size)} ·{" "}
-                {formatDateTime(object.lastModified)}
-              </p>
-            </button>
-            <CopyButton
-              value={lastPathSegment(object.key)}
-              label=""
-              size="icon"
-              aria-label={`Copy filename of ${object.name}`}
-              title="Copy filename"
-            />
-          </div>
-          <div className="border-border mt-2 border-t pt-2">
-            <DownloadLinkActions objectKey={object.key} />
-          </div>
-          <div className="mt-2 flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDeleteOne(object)}
-              aria-label={`Delete ${object.name}`}
-            >
-              <Trash2 className="text-destructive h-4 w-4" />
-            </Button>
-          </div>
+        <Card key={object.key}>
+          <Stack p="3" gap="2">
+            <HStack align="flex-start" gap="2">
+              <Checkbox.Root
+                size="sm"
+                mt="1"
+                checked={selected.has(object.key)}
+                onCheckedChange={() => onToggle(object.key)}
+              >
+                <Checkbox.HiddenInput aria-label={`Select ${object.name}`} />
+                <Checkbox.Control />
+              </Checkbox.Root>
+              <Box asChild minW="0" flex="1" textAlign="left">
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail(object)}
+                  title={object.key}
+                >
+                  <HStack gap="2">
+                    <Icon size="sm" color="fg.muted" flexShrink="0" asChild>
+                      <File />
+                    </Icon>
+                    <Span truncate fontFamily="mono" fontSize="sm">
+                      {truncateMiddle(object.name, 36)}
+                    </Span>
+                  </HStack>
+                  <Text color="fg.muted" fontSize="xs" mt="1">
+                    {formatSize(object.size)} ·{" "}
+                    {formatDateTime(object.lastModified)}
+                  </Text>
+                </button>
+              </Box>
+              <CopyButton
+                value={lastPathSegment(object.key)}
+                label=""
+                size="icon"
+                aria-label={`Copy filename of ${object.name}`}
+                title="Copy filename"
+              />
+            </HStack>
+            <Box borderTopWidth="1px" borderColor="border" pt="2">
+              <DownloadLinkActions objectKey={object.key} />
+            </Box>
+            <HStack justify="flex-end" gap="1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDeleteOne(object)}
+                aria-label={`Delete ${object.name}`}
+              >
+                <Icon size="sm" color="fg.error" asChild>
+                  <Trash2 />
+                </Icon>
+              </Button>
+            </HStack>
+          </Stack>
         </Card>
       ))}
-    </div>
+    </Stack>
   );
 }

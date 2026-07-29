@@ -2,9 +2,18 @@
 
 import { useState } from "react";
 import { HardDrive, ScanLine } from "lucide-react";
+import {
+  HStack,
+  Icon,
+  Progress,
+  Stack,
+  Table,
+  Text,
+  Wrap,
+} from "@chakra-ui/react";
 import type { UsageScope } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty_state";
@@ -17,7 +26,7 @@ interface ScanFailure {
   message: string;
 }
 
-interface Progress {
+interface ScanProgress {
   done: number;
   total: number;
 }
@@ -32,7 +41,7 @@ export function UsagePanel({
 }) {
   const [scopes, setScopes] = useState<UsageScope[]>([]);
   const [failures, setFailures] = useState<ScanFailure[]>([]);
-  const [progress, setProgress] = useState<Progress | undefined>();
+  const [progress, setProgress] = useState<ScanProgress | undefined>();
   const [scannedAt, setScannedAt] = useState<Date | undefined>();
   const scanning = progress !== undefined && progress.done < progress.total;
 
@@ -68,11 +77,13 @@ export function UsagePanel({
   const showAggregate = scopes.length > 1;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+    <Stack gap="4">
+      <Wrap gap="2">
         {currentBucket ? (
           <Button onClick={() => scan([currentBucket])} disabled={scanning}>
-            <ScanLine className="h-4 w-4" />
+            <Icon size="sm" asChild>
+              <ScanLine />
+            </Icon>
             Scan {currentBucket}
           </Button>
         ) : null}
@@ -81,29 +92,32 @@ export function UsagePanel({
           onClick={() => scan(availableBuckets)}
           disabled={scanning || availableBuckets.length === 0}
         >
-          <HardDrive className="h-4 w-4" />
+          <Icon size="sm" asChild>
+            <HardDrive />
+          </Icon>
           Scan all buckets ({availableBuckets.length})
         </Button>
-      </div>
+      </Wrap>
 
       {progress ? (
-        <div className="space-y-1">
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            {scanning ? <Spinner /> : null}
-            <span>
+        <Progress.Root
+          value={progress.done}
+          max={progress.total}
+          size="xs"
+          striped={scanning}
+          animated={scanning}
+        >
+          <HStack color="fg.muted" fontSize="sm" gap="2" mb="1">
+            {scanning ? <Spinner size="xs" /> : null}
+            <Progress.Label>
               Scanned {progress.done} of {progress.total} bucket
               {progress.total === 1 ? "" : "s"}
-            </span>
-          </div>
-          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full transition-all"
-              style={{
-                width: `${(progress.done / progress.total) * 100}%`,
-              }}
-            />
-          </div>
-        </div>
+            </Progress.Label>
+          </HStack>
+          <Progress.Track>
+            <Progress.Range />
+          </Progress.Track>
+        </Progress.Root>
       ) : null}
 
       {scopes.length === 0 && !scanning ? (
@@ -113,45 +127,43 @@ export function UsagePanel({
           description="Run a scan to estimate storage usage."
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground text-left">
-                <tr>
-                  <th className="px-4 py-2">Scope</th>
-                  <th className="px-4 py-2 text-right">Size</th>
-                  <th className="px-4 py-2 text-right">Objects</th>
-                  <th className="px-4 py-2">Last Scanned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {showAggregate ? (
-                  <tr className="border-border border-t font-medium">
-                    <td className="px-4 py-2">all buckets</td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {formatSize(totalSize)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {totalObjects.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2">{formatDateTime(scannedAt)}</td>
-                  </tr>
-                ) : null}
-                {scopes.map((scope) => (
-                  <tr key={scope.scope} className="border-border border-t">
-                    <td className="px-4 py-2">{scope.scope}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {formatSize(scope.totalSize)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {scope.objectCount.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2">{formatDateTime(scannedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
+        <Card overflow="hidden">
+          <Table.Root size="sm">
+            <Table.Header>
+              <Table.Row bg="bg.muted">
+                <Table.ColumnHeader>Scope</Table.ColumnHeader>
+                <Table.ColumnHeader textAlign="end">Size</Table.ColumnHeader>
+                <Table.ColumnHeader textAlign="end">Objects</Table.ColumnHeader>
+                <Table.ColumnHeader>Last Scanned</Table.ColumnHeader>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {showAggregate ? (
+                <Table.Row fontWeight="medium">
+                  <Table.Cell>all buckets</Table.Cell>
+                  <Table.Cell textAlign="end">
+                    {formatSize(totalSize)}
+                  </Table.Cell>
+                  <Table.Cell textAlign="end">
+                    {totalObjects.toLocaleString()}
+                  </Table.Cell>
+                  <Table.Cell>{formatDateTime(scannedAt)}</Table.Cell>
+                </Table.Row>
+              ) : null}
+              {scopes.map((scope) => (
+                <Table.Row key={scope.scope}>
+                  <Table.Cell>{scope.scope}</Table.Cell>
+                  <Table.Cell textAlign="end">
+                    {formatSize(scope.totalSize)}
+                  </Table.Cell>
+                  <Table.Cell textAlign="end">
+                    {scope.objectCount.toLocaleString()}
+                  </Table.Cell>
+                  <Table.Cell>{formatDateTime(scannedAt)}</Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Root>
         </Card>
       )}
 
@@ -162,11 +174,13 @@ export function UsagePanel({
       ) : null}
 
       <Alert variant="warning">
-        Usage is calculated by scanning visible objects through S3-compatible
-        APIs. It may not include provider-specific overhead, incomplete
-        multipart uploads, object versions, delete markers, or backend internal
-        metadata.
+        <Text>
+          Usage is calculated by scanning visible objects through S3-compatible
+          APIs. It may not include provider-specific overhead, incomplete
+          multipart uploads, object versions, delete markers, or backend
+          internal metadata.
+        </Text>
       </Alert>
-    </div>
+    </Stack>
   );
 }

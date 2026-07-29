@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import { Checkbox, HStack, Icon, Table, Wrap } from "@chakra-ui/react";
 import type { CleanupCandidate } from "@/domain/s3/cleanup";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
@@ -8,6 +9,12 @@ import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { truncateMiddle } from "@/lib/truncate";
 import { CleanupReasonBadge } from "./cleanup_reason_badge";
+
+// Hoisted so every row shares one style object rather than rebuilding it per row.
+const ROW_STYLES = {
+  _hover: { bg: "bg.subtle" },
+  _selected: { bg: "bg.muted" },
+} as const;
 
 interface CleanupCandidateTableProps {
   candidates: CleanupCandidate[];
@@ -30,69 +37,78 @@ export function CleanupCandidateTable({
   onDeleteOne,
 }: CleanupCandidateTableProps) {
   return (
-    <div className="border-border overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted text-muted-foreground text-left">
-          <tr>
-            <th className="w-10 px-3 py-2">
-              <input
-                type="checkbox"
+    // Matches the object listing: no height cap, so the page scrolls rather than
+    // the table scrolling inside itself. The scroll area only handles horizontal
+    // overflow.
+    <Table.ScrollArea borderWidth="1px" borderColor="border" borderRadius="l3">
+      <Table.Root size="sm" interactive>
+        <Table.Header>
+          <Table.Row bg="bg.muted">
+            <Table.ColumnHeader width="10">
+              <Checkbox.Root
+                size="sm"
                 checked={allSelected}
-                onChange={(event) => onToggleAll(event.target.checked)}
-                aria-label="Select all candidates"
-                className="h-4 w-4 accent-[var(--color-primary)]"
-              />
-            </th>
-            <th className="px-3 py-2">Bucket</th>
-            <th className="px-3 py-2">Key</th>
-            <th className="px-3 py-2 text-right">Size</th>
-            <th className="px-3 py-2">Last Modified</th>
-            <th className="px-3 py-2">Storage Class</th>
-            <th className="px-3 py-2">Cleanup Reason</th>
-            <th className="w-24 px-3 py-2 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+                onCheckedChange={(event) => onToggleAll(event.checked === true)}
+              >
+                <Checkbox.HiddenInput aria-label="Select all candidates" />
+                <Checkbox.Control />
+              </Checkbox.Root>
+            </Table.ColumnHeader>
+            <Table.ColumnHeader>Bucket</Table.ColumnHeader>
+            <Table.ColumnHeader>Key</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Size</Table.ColumnHeader>
+            <Table.ColumnHeader>Last Modified</Table.ColumnHeader>
+            <Table.ColumnHeader>Storage Class</Table.ColumnHeader>
+            <Table.ColumnHeader>Cleanup Reason</Table.ColumnHeader>
+            <Table.ColumnHeader width="24" textAlign="end">
+              Actions
+            </Table.ColumnHeader>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
           {candidates.map((candidate) => {
             const id = idOf(candidate);
+            const isSelected = selected.has(id);
             return (
-              <tr
+              <Table.Row
                 key={id}
-                className="border-border hover:bg-accent/50 border-t"
+                data-selected={isSelected ? "" : undefined}
+                {...ROW_STYLES}
               >
-                <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(id)}
-                    onChange={() => onToggle(id)}
-                    aria-label={`Select ${candidate.key}`}
-                    className="h-4 w-4 accent-[var(--color-primary)]"
-                  />
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  {candidate.bucket}
-                </td>
-                <td className="px-3 py-2 font-mono" title={candidate.key}>
+                <Table.Cell>
+                  <Checkbox.Root
+                    size="sm"
+                    checked={isSelected}
+                    onCheckedChange={() => onToggle(id)}
+                  >
+                    <Checkbox.HiddenInput
+                      aria-label={`Select ${candidate.key}`}
+                    />
+                    <Checkbox.Control />
+                  </Checkbox.Root>
+                </Table.Cell>
+                <Table.Cell whiteSpace="nowrap">{candidate.bucket}</Table.Cell>
+                <Table.Cell fontFamily="mono" title={candidate.key}>
                   {truncateMiddle(candidate.key, 48)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                </Table.Cell>
+                <Table.Cell textAlign="end">
                   {formatSize(candidate.sizeBytes)}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
+                </Table.Cell>
+                <Table.Cell whiteSpace="nowrap">
                   {formatDateTime(candidate.lastModified)}
-                </td>
-                <td className="text-muted-foreground px-3 py-2">
+                </Table.Cell>
+                <Table.Cell color="fg.muted">
                   {candidate.storageClass ?? "—"}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-1">
+                </Table.Cell>
+                <Table.Cell>
+                  <Wrap gap="1">
                     {candidate.reasons.map((reason) => (
                       <CleanupReasonBadge key={reason} reason={reason} />
                     ))}
-                  </div>
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-1">
+                  </Wrap>
+                </Table.Cell>
+                <Table.Cell>
+                  <HStack gap="1" justify="flex-end">
                     <CopyButton
                       value={candidate.key}
                       label=""
@@ -105,15 +121,17 @@ export function CleanupCandidateTable({
                       aria-label={`Delete ${candidate.key}`}
                       title="Delete"
                     >
-                      <Trash2 className="text-destructive h-4 w-4" />
+                      <Icon size="sm" color="fg.error" asChild>
+                        <Trash2 />
+                      </Icon>
                     </Button>
-                  </div>
-                </td>
-              </tr>
+                  </HStack>
+                </Table.Cell>
+              </Table.Row>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </Table.Body>
+      </Table.Root>
+    </Table.ScrollArea>
   );
 }

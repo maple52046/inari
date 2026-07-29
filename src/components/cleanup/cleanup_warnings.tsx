@@ -1,3 +1,4 @@
+import { List, Stack, Text } from "@chakra-ui/react";
 import type { CleanupWarning } from "@/domain/s3/cleanup";
 import { Alert } from "@/components/ui/alert";
 
@@ -8,14 +9,16 @@ export function CleanupWarnings({ warnings }: { warnings: CleanupWarning[] }) {
   }
   return (
     <Alert variant="warning">
-      <p className="font-medium">Some buckets could not be scanned.</p>
-      <ul className="mt-1 space-y-0.5 text-xs">
-        {warnings.map((warning) => (
-          <li key={warning.bucket}>
-            {warning.bucket}: {warning.message}
-          </li>
-        ))}
-      </ul>
+      <Stack gap="1">
+        <Text fontWeight="medium">Some buckets could not be scanned.</Text>
+        <List.Root variant="plain" fontSize="xs" gap="0.5">
+          {warnings.map((warning) => (
+            <List.Item key={warning.bucket}>
+              {warning.bucket}: {warning.message}
+            </List.Item>
+          ))}
+        </List.Root>
+      </Stack>
     </Alert>
   );
 }

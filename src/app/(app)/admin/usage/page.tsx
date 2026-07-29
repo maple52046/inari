@@ -1,11 +1,13 @@
+import { Stack } from "@chakra-ui/react";
 import { StorageError, storageErrorMessage } from "@/domain/s3/errors";
 import { listBuckets } from "@/application/list_buckets";
 import { requireStorage } from "@/infrastructure/composition";
 import { UsagePanel } from "@/components/s3/usage_panel";
 import { Alert } from "@/components/ui/alert";
+import { PageHeader } from "@/components/ui/page_header";
 
 export const metadata = {
-  title: "Usage - S3 Manager",
+  title: "Usage - Inari",
 };
 
 interface UsagePageProps {
@@ -30,13 +32,11 @@ export default async function UsagePage({ searchParams }: UsagePageProps) {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Usage</h1>
-        <p className="text-muted-foreground text-sm">
-          Scan-based storage estimate across S3-compatible buckets.
-        </p>
-      </div>
+    <Stack gap="5">
+      <PageHeader
+        title="Usage"
+        description="Scan-based storage estimate across S3-compatible buckets."
+      />
       {loadError ? (
         <Alert variant="error">{loadError}</Alert>
       ) : (
@@ -45,6 +45,6 @@ export default async function UsagePage({ searchParams }: UsagePageProps) {
           currentBucket={currentBucket}
         />
       )}
-    </div>
+    </Stack>
   );
 }

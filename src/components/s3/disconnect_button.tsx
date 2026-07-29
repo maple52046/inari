@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { LogOut } from "lucide-react";
+import { Icon } from "@chakra-ui/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { disconnectAction } from "@/app/(app)/settings/actions";
@@ -21,7 +22,13 @@ export function DisconnectButton() {
 
   return (
     <Button variant="destructive" onClick={disconnect} disabled={pending}>
-      {pending ? <Spinner /> : <LogOut className="h-4 w-4" />}
+      {pending ? (
+        <Spinner size="sm" />
+      ) : (
+        <Icon size="sm" asChild>
+          <LogOut />
+        </Icon>
+      )}
       Disconnect
     </Button>
   );

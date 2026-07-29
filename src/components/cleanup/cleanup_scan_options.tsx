@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HStack, NativeSelect, SimpleGrid } from "@chakra-ui/react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toDateInputValue } from "@/lib/date";
@@ -26,9 +27,6 @@ const DEFAULT_MIN_SIZE_UNIT = "GB";
 const DEFAULT_OLDER_THAN_DAYS = 90;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const selectClass =
-  "h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
 function toBytes(value: string, unit: string): number | undefined {
   const parsed = Number(value);
@@ -68,10 +66,10 @@ export function CleanupScanOptions({
   }, [minValue, minUnit, olderThan, maxResults, onChange]);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <SimpleGrid columns={{ base: 1, sm: 3 }} gap="3">
       <div>
         <Label htmlFor="cleanup-min-size">Minimum file size</Label>
-        <div className="flex items-center gap-1">
+        <HStack gap="1">
           <Input
             id="cleanup-min-size"
             value={minValue}
@@ -79,17 +77,19 @@ export function CleanupScanOptions({
             inputMode="decimal"
             placeholder="Any"
           />
-          <select
-            value={minUnit}
-            onChange={(event) => setMinUnit(event.target.value)}
-            className={selectClass}
-            aria-label="Minimum size unit"
-          >
-            {Object.keys(SIZE_UNITS).map((unit) => (
-              <option key={unit}>{unit}</option>
-            ))}
-          </select>
-        </div>
+          <NativeSelect.Root width="auto">
+            <NativeSelect.Field
+              value={minUnit}
+              onChange={(event) => setMinUnit(event.currentTarget.value)}
+              aria-label="Minimum size unit"
+            >
+              {Object.keys(SIZE_UNITS).map((unit) => (
+                <option key={unit}>{unit}</option>
+              ))}
+            </NativeSelect.Field>
+            <NativeSelect.Indicator />
+          </NativeSelect.Root>
+        </HStack>
       </div>
       <div>
         <Label htmlFor="cleanup-older-than">Older than date</Label>
@@ -110,6 +110,6 @@ export function CleanupScanOptions({
           placeholder={String(DEFAULT_MAX_RESULTS)}
         />
       </div>
-    </div>
+    </SimpleGrid>
   );
 }
