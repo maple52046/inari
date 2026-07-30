@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Check,
   Copy,
   ExternalLink,
   KeyRound,
@@ -22,6 +23,7 @@ import type { ObjectSummary } from "@/domain/s3/models";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy_button";
 import { Spinner } from "@/components/ui/spinner";
+import { useCopiedFlag } from "@/components/ui/use_copied_flag";
 import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { useDownloadLinks } from "./download_link_context";
@@ -42,10 +44,18 @@ function Field({ label, value }: { label: string; value: string }) {
 /** Download section: link type, full URL, and copy/open/regenerate actions. */
 function DownloadSection({ objectKey }: { objectKey: string }) {
   const { linkFor, copy, open, regenerate, expiry } = useDownloadLinks();
+  const { copied, acknowledgeCopy } = useCopiedFlag();
   const link = linkFor(objectKey);
   const isPresigned = link.mode === "presigned";
   const generatedAt =
     link.expiresAt !== undefined ? link.expiresAt - expiry * 1000 : undefined;
+
+  // Acknowledged only on a successful copy, so a signing failure never shows a tick.
+  async function handleCopy(): Promise<void> {
+    if (await copy(objectKey)) {
+      acknowledgeCopy();
+    }
+  }
 
   return (
     <Stack borderTopWidth="1px" borderColor="border" pt="4" gap="2">
@@ -108,11 +118,13 @@ function DownloadSection({ objectKey }: { objectKey: string }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => copy(objectKey)}
+          onClick={handleCopy}
           disabled={link.status === "loading"}
         >
-          <Icon size="sm" asChild>
-            <Copy />
+          {/* Label stays put while the icon acknowledges, so the button row does
+              not reflow under the neighbouring actions. */}
+          <Icon size="sm" color={copied ? "brand.solid" : undefined} asChild>
+            {copied ? <Check /> : <Copy />}
           </Icon>
           Copy Link
         </Button>

@@ -43,7 +43,8 @@ interface DownloadLinkContextValue {
   expiry: PresignExpiry;
   linkFor: (key: string) => ObjectDownloadLink;
   regenerate: (key: string) => Promise<void>;
-  copy: (key: string) => Promise<void>;
+  /** @returns Whether the link reached the clipboard, for the caller's feedback. */
+  copy: (key: string) => Promise<boolean>;
   open: (key: string) => Promise<void>;
 }
 
@@ -178,17 +179,18 @@ export function DownloadLinkProvider({
   );
 
   const copy = useCallback(
-    async (key: string): Promise<void> => {
+    async (key: string): Promise<boolean> => {
       const url = await resolveUrl(key);
       if (!url) {
         notify("Failed to prepare download link", "error");
-        return;
+        return false;
       }
       const copied = await copyText(url);
       notify(
         copied ? "Link copied" : "Copy failed",
         copied ? "success" : "error",
       );
+      return copied;
     },
     [resolveUrl, notify],
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Check,
   Clock,
   ExternalLink,
   Link as LinkIcon,
@@ -9,6 +10,7 @@ import {
 import { HStack, Icon, Span } from "@chakra-ui/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useCopiedFlag } from "@/components/ui/use_copied_flag";
 import { useDownloadLinks } from "./download_link_context";
 
 function expiryLabel(expiresAt: number | undefined): string {
@@ -61,18 +63,27 @@ export function OpenLinkButton({ objectKey }: { objectKey: string }) {
  */
 export function CopyLinkButton({ objectKey }: { objectKey: string }) {
   const { linkFor, copy } = useDownloadLinks();
+  const { copied, acknowledgeCopy } = useCopiedFlag();
+
+  // Acknowledged only on a successful copy: in presigned mode the click may fail
+  // at signing, and a tick would then claim something that did not happen.
+  async function handleCopy(): Promise<void> {
+    if (await copy(objectKey)) {
+      acknowledgeCopy();
+    }
+  }
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => copy(objectKey)}
+      onClick={handleCopy}
       disabled={linkFor(objectKey).status === "loading"}
       aria-label="Copy download link"
-      title="Copy link"
+      title={copied ? "Link copied" : "Copy link"}
     >
-      <Icon size="sm" asChild>
-        <LinkIcon />
+      <Icon size="sm" color={copied ? "brand.solid" : undefined} asChild>
+        {copied ? <Check /> : <LinkIcon />}
       </Icon>
     </Button>
   );
