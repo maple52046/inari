@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { File, Folder, Trash2 } from "lucide-react";
+import { File, Folder, FolderInput, Trash2 } from "lucide-react";
 import {
   Box,
   Checkbox,
@@ -35,6 +35,7 @@ interface ObjectCardListProps {
   folderUsage?: Map<string, PrefixUsageEntry>;
   onToggle: (key: string) => void;
   onOpenDetail: (object: ObjectSummary) => void;
+  onMoveOne: (object: ObjectSummary) => void;
   onDeleteOne: (object: ObjectSummary) => void;
 }
 
@@ -47,6 +48,7 @@ export function ObjectCardList({
   folderUsage,
   onToggle,
   onOpenDetail,
+  onMoveOne,
   onDeleteOne,
 }: ObjectCardListProps) {
   return (
@@ -120,6 +122,16 @@ export function ObjectCardList({
               <DownloadLinkActions objectKey={object.key} />
             </Box>
             <HStack justify="flex-end" gap="1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onMoveOne(object)}
+                aria-label={`Move ${object.name}`}
+              >
+                <Icon size="sm" asChild>
+                  <FolderInput />
+                </Icon>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

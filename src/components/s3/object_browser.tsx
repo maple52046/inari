@@ -7,6 +7,7 @@ import { Box, Flex, Icon, Span, Stack } from "@chakra-ui/react";
 import type {
   CommonPrefix,
   DeleteResult,
+  MoveResult,
   ObjectListPage,
   ObjectSummary,
 } from "@/domain/s3/models";
@@ -31,7 +32,9 @@ import { ObjectTable } from "./object_table";
 import { ObjectCardList } from "./object_card_list";
 import { ObjectDetailDrawer } from "./object_detail_drawer";
 import { DeleteDialog } from "./delete_dialog";
+import { MoveDialog } from "./move_dialog";
 import { DownloadLinkProvider } from "./download_link_context";
+import { childOfPrefix } from "@/lib/object_path";
 import type {
   PrefixUsage,
   PrefixUsageEntry,
@@ -101,6 +104,8 @@ export function ObjectBrowser({
   const [detail, setDetail] = useState<ObjectSummary | undefined>();
   const [deleteTargets, setDeleteTargets] = useState<ObjectSummary[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [moveTargets, setMoveTargets] = useState<ObjectSummary[]>([]);
+  const [moveOpen, setMoveOpen] = useState(false);
 
   const [usage, setUsage] = useState<PrefixUsage | undefined>();
   const [usageScannedAt, setUsageScannedAt] = useState<Date | undefined>();
@@ -131,6 +136,29 @@ export function ObjectBrowser({
   function changeExpiry(nextExpiry: PresignExpiry): void {
     setExpiry(nextExpiry);
     persistDownloadPreference(downloadMode, nextExpiry);
+  }
+
+  /*
+   * Adopts a newly delivered server page.
+   *
+   * The listing renders from state, and `useState` only reads its initial value
+   * on mount. The page keys this component by prefix, so navigating to another
+   * folder remounts it, but a refresh keeps the same key: without this the
+   * refetched page would be discarded and Refresh would appear to do nothing.
+   */
+  const [seededPage, setSeededPage] = useState(initialPage);
+  if (seededPage !== initialPage) {
+    setSeededPage(initialPage);
+    setObjects(initialPage.objects);
+    setPrefixes(initialPage.prefixes);
+    setToken(initialPage.continuationToken);
+    setLoadError(undefined);
+    // Pages appended on top of the replaced listing are gone, so selections
+    // pointing into them would keep inflating the count in the toolbar.
+    setSelected((current) => {
+      const present = new Set(initialPage.objects.map((object) => object.key));
+      return new Set([...current].filter((key) => present.has(key)));
+    });
   }
 
   const visible = useMemo(
@@ -255,6 +283,77 @@ export function ObjectBrowser({
     });
   }
 
+  function openMoveSelected(): void {
+    setMoveTargets(selectedObjects);
+    setMoveOpen(true);
+  }
+
+  function openMoveOne(object: ObjectSummary): void {
+    setMoveTargets([object]);
+    setMoveOpen(true);
+  }
+
+  /**
+   * Reconciles the listing with a completed move.
+   *
+   * A destination inside the current location still belongs on screen, so it is
+   * re-added rather than left looking deleted: directly in this folder it stays
+   * an object row, and deeper down it appears as the folder that now holds it,
+   * which may not have existed before the move.
+   */
+  function onMoved(result: MoveResult, destinationBucket: string): void {
+    const relocated = new Map(
+      result.moved.map((entry) => [entry.key, entry.destinationKey]),
+    );
+    if (relocated.size === 0) {
+      return;
+    }
+
+    const renamed: ObjectSummary[] = [];
+    const arrivals: CommonPrefix[] = [];
+    for (const object of objects) {
+      const destinationKey = relocated.get(object.key);
+      // Another bucket takes the object out of this listing entirely.
+      if (destinationKey === undefined || destinationBucket !== bucket) {
+        continue;
+      }
+      const child = childOfPrefix(destinationKey, prefix);
+      if (!child) {
+        continue;
+      }
+      if (child.isPrefix) {
+        arrivals.push({
+          prefix: `${prefix}${child.name}`,
+          // Folder rows render their own trailing delimiter.
+          name: child.name.slice(0, -1),
+        });
+      } else {
+        // The ETag is dropped rather than carried over: a multipart copy
+        // produces a different one, so the old value could be wrong.
+        renamed.push({
+          ...object,
+          key: destinationKey,
+          name: child.name,
+          lastModified: new Date(),
+          etag: undefined,
+        });
+      }
+    }
+
+    setObjects((current) => [
+      ...current.filter((object) => !relocated.has(object.key)),
+      ...renamed,
+    ]);
+    setPrefixes((current) => mergePrefixes(current, arrivals));
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const key of relocated.keys()) {
+        next.delete(key);
+      }
+      return next;
+    });
+  }
+
   const isEmpty = visible.length === 0 && prefixes.length === 0;
 
   return (
@@ -274,6 +373,7 @@ export function ObjectBrowser({
           onFilterChange={handleFilterChange}
           selectedCount={selected.size}
           selectedSize={selectedSize}
+          onMove={openMoveSelected}
           onDelete={openDeleteSelected}
           onRefresh={() => router.refresh()}
           showStorageClass={showStorageClass}
@@ -332,6 +432,7 @@ export function ObjectBrowser({
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 onOpenDetail={setDetail}
+                onMoveOne={openMoveOne}
                 onDeleteOne={openDeleteOne}
               />
             </Box>
@@ -344,6 +445,7 @@ export function ObjectBrowser({
                 folderUsage={folderUsage}
                 onToggle={toggle}
                 onOpenDetail={setDetail}
+                onMoveOne={openMoveOne}
                 onDeleteOne={openDeleteOne}
               />
             </Box>
@@ -395,6 +497,15 @@ export function ObjectBrowser({
           targets={deleteTargets}
           onClose={() => setDeleteOpen(false)}
           onDeleted={onDeleted}
+        />
+
+        <MoveDialog
+          open={moveOpen}
+          bucket={bucket}
+          prefix={prefix}
+          targets={moveTargets}
+          onClose={() => setMoveOpen(false)}
+          onMoved={onMoved}
         />
       </Stack>
     </DownloadLinkProvider>

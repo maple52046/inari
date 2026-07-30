@@ -14,6 +14,34 @@ export function lastPathSegment(key: string): string {
   return segments.at(-1) ?? key;
 }
 
+/**
+ * Returns the folder part of an object key, keeping its trailing delimiter.
+ *
+ * The result is directly comparable with the prefix a listing was taken at,
+ * which is how a caller decides whether a key belongs to the folder on screen.
+ *
+ * @returns The folder prefix, or an empty string for a key at the bucket root.
+ */
+export function parentPrefix(key: string): string {
+  const boundary = key.lastIndexOf("/");
+  return boundary === -1 ? "" : key.slice(0, boundary + 1);
+}
+
+/**
+ * Builds a full object key from a destination folder and a file name.
+ *
+ * Accepts the loose paths a user types: surrounding delimiters on the folder are
+ * optional, and the bucket root yields a bare name rather than a key with a
+ * leading separator, which S3 would treat as an unnamed first segment.
+ */
+export function joinObjectPath(folder: string, name: string): string {
+  const trimmedFolder = folder.replace(/^\/+/, "").replace(/\/+$/, "");
+  const trimmedName = name.replace(/^\/+/, "");
+  return trimmedFolder.length > 0
+    ? `${trimmedFolder}/${trimmedName}`
+    : trimmedName;
+}
+
 /** One immediate child of a prefix: either a sub-prefix or an object in it. */
 export interface PrefixChild {
   /** Name relative to the prefix; sub-prefixes keep their trailing delimiter. */

@@ -12,6 +12,7 @@ export type StorageErrorKind =
   | "access_denied"
   | "not_found"
   | "delete_failed"
+  | "copy_failed"
   | "pagination_failed"
   | "unknown";
 
@@ -51,6 +52,8 @@ export function storageErrorMessage(kind: StorageErrorKind): string {
       return "The requested bucket or object was not found";
     case "delete_failed":
       return "Some objects could not be deleted";
+    case "copy_failed":
+      return "The object could not be copied";
     case "pagination_failed":
       return "Failed to load next page";
     case "unknown":

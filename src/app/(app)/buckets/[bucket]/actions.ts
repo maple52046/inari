@@ -1,9 +1,16 @@
 "use server";
 
 import { StorageError, storageErrorMessage } from "@/domain/s3/errors";
-import type { DeleteResult, ObjectListPage } from "@/domain/s3/models";
+import type {
+  DeleteResult,
+  MoveResult,
+  ObjectListPage,
+} from "@/domain/s3/models";
+import { listBuckets } from "@/application/list_buckets";
 import { listObjects } from "@/application/list_objects";
 import { deleteObjects } from "@/application/delete_objects";
+import { moveObjects } from "@/application/move_objects";
+import type { MoveEntry } from "@/application/move_objects";
 import { getDownloadUrl } from "@/application/get_download_url";
 import { scanPrefixUsage } from "@/application/scan_prefix_usage";
 import type { PrefixUsage } from "@/application/scan_prefix_usage";
@@ -16,6 +23,14 @@ export type LoadObjectsResult =
 /** Discriminated result returned from a batch delete. */
 export type DeleteObjectsActionResult =
   { ok: true; result: DeleteResult } | { ok: false; message: string };
+
+/** Discriminated result returned from a batch move. */
+export type MoveObjectsActionResult =
+  { ok: true; result: MoveResult } | { ok: false; message: string };
+
+/** Discriminated result returned when listing move destinations. */
+export type BucketNamesResult =
+  { ok: true; buckets: string[] } | { ok: false; message: string };
 
 /** Discriminated result returned when requesting a download URL. */
 export type DownloadUrlResult =
@@ -78,6 +93,44 @@ export async function deleteObjectsAction(input: {
       ok: false,
       message: messageFor(error, "Some objects could not be deleted"),
     };
+  }
+}
+
+/**
+ * Relocates the given objects and reports per-object outcome.
+ *
+ * Destination keys are resolved by the caller, which is what lets one request
+ * serve both a rename and a batch move into a folder.
+ */
+export async function moveObjectsAction(input: {
+  sourceBucket: string;
+  destinationBucket: string;
+  entries: MoveEntry[];
+}): Promise<MoveObjectsActionResult> {
+  try {
+    const storage = await requireStorage();
+    const result = await moveObjects(storage, {
+      sourceBucket: input.sourceBucket,
+      destinationBucket: input.destinationBucket,
+      entries: input.entries,
+    });
+    return { ok: true, result };
+  } catch (error) {
+    return {
+      ok: false,
+      message: messageFor(error, "Some objects could not be moved"),
+    };
+  }
+}
+
+/** Lists the buckets a move can target. */
+export async function listBucketNamesAction(): Promise<BucketNamesResult> {
+  try {
+    const storage = await requireStorage();
+    const buckets = await listBuckets(storage);
+    return { ok: true, buckets: buckets.map((bucket) => bucket.name) };
+  } catch (error) {
+    return { ok: false, message: messageFor(error, "Failed to list buckets") };
   }
 }
 

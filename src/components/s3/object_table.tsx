@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
   File,
   Folder,
+  FolderInput,
   Trash2,
 } from "lucide-react";
 import { Checkbox, HStack, Icon, Span, Table } from "@chakra-ui/react";
@@ -128,6 +129,7 @@ interface ObjectTableProps {
   onToggle: (key: string) => void;
   onToggleAll: (checked: boolean) => void;
   onOpenDetail: (object: ObjectSummary) => void;
+  onMoveOne: (object: ObjectSummary) => void;
   onDeleteOne: (object: ObjectSummary) => void;
 }
 
@@ -145,6 +147,7 @@ export function ObjectTable({
   onToggle,
   onToggleAll,
   onOpenDetail,
+  onMoveOne,
   onDeleteOne,
 }: ObjectTableProps) {
   return (
@@ -191,7 +194,7 @@ export function ObjectTable({
             {showStorageClass ? (
               <Table.ColumnHeader>Storage Class</Table.ColumnHeader>
             ) : null}
-            <Table.ColumnHeader width="32">Actions</Table.ColumnHeader>
+            <Table.ColumnHeader width="40">Actions</Table.ColumnHeader>
           </Table.Row>
         </Table.Header>
         <Table.Body>
@@ -304,6 +307,17 @@ export function ObjectTable({
                   <HStack gap="1" justify="flex-end">
                     <CopyLinkButton objectKey={object.key} />
                     <OpenLinkButton objectKey={object.key} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onMoveOne(object)}
+                      aria-label={`Move ${object.name}`}
+                      title="Move"
+                    >
+                      <Icon size="sm" asChild>
+                        <FolderInput />
+                      </Icon>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

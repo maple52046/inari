@@ -5,6 +5,14 @@ import type {
   S3Connection,
 } from "./models";
 
+/** Source and destination of a single server-side object copy. */
+export interface CopyObjectInput {
+  sourceBucket: string;
+  sourceKey: string;
+  destinationBucket: string;
+  destinationKey: string;
+}
+
 /** Parameters for a single delimited object-listing request. */
 export interface ListObjectsInput {
   bucket: string;
@@ -32,6 +40,21 @@ export interface ObjectStoragePort {
   listObjects(input: ListObjectsInput): Promise<ObjectListPage>;
   /** Deletes the given keys, chunking internally to respect API limits. */
   deleteObjects(bucket: string, keys: string[]): Promise<DeleteResult>;
+  /**
+   * Reports whether an object exists at exactly this key.
+   *
+   * A listing cannot answer this: it drops the key equal to the requested
+   * prefix, which is the very row an existence probe asks about.
+   */
+  objectExists(bucket: string, key: string): Promise<boolean>;
+  /**
+   * Copies one object server-side, across buckets when asked.
+   *
+   * Implementations must handle sources beyond the backend's single-request copy
+   * limit, so a caller can copy any object it is able to list. Overwrites the
+   * destination if one exists; callers that must not clobber check first.
+   */
+  copyObject(input: CopyObjectInput): Promise<void>;
   /**
    * Returns a presigned URL to download a single object.
    *

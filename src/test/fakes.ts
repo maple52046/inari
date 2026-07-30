@@ -31,6 +31,8 @@ export function createFakeStorage(
       deleted: [],
       failed: [],
     }),
+    objectExists: async (): Promise<boolean> => false,
+    copyObject: async (): Promise<void> => undefined,
     getDownloadUrl: async (): Promise<string> => "https://example/download",
   };
   return { ...base, ...overrides };

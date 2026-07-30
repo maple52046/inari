@@ -107,3 +107,28 @@ export interface DeleteFailure {
   key: string;
   message: string;
 }
+
+/** An object that reached its destination and no longer exists at `key`. */
+export interface MovedObject {
+  key: string;
+  destinationKey: string;
+}
+
+/** A single object that could not be moved, with a normalized reason. */
+export interface MoveFailure {
+  key: string;
+  message: string;
+}
+
+/**
+ * Outcome of a batch move.
+ *
+ * A move is a copy followed by a delete, so it is not atomic: every requested
+ * key lands in exactly one of these lists, and a failure may mean the copy never
+ * happened *or* that it happened and the source could not be removed. The
+ * failure message distinguishes the two.
+ */
+export interface MoveResult {
+  moved: MovedObject[];
+  failed: MoveFailure[];
+}

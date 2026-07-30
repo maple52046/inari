@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Archive,
   ArrowUpDown,
+  FolderInput,
   KeyRound,
   RefreshCw,
   Search,
@@ -55,6 +56,7 @@ interface ObjectToolbarProps {
   onFilterChange: (filter: ObjectFilter) => void;
   selectedCount: number;
   selectedSize: number;
+  onMove: () => void;
   onDelete: () => void;
   onRefresh: () => void;
   showStorageClass: boolean;
@@ -72,6 +74,7 @@ export function ObjectToolbar({
   onFilterChange,
   selectedCount,
   selectedSize,
+  onMove,
   onDelete,
   onRefresh,
   showStorageClass,
@@ -331,12 +334,20 @@ export function ObjectToolbar({
             <Text fontSize="sm">
               {selectedCount} selected · {formatSize(selectedSize)}
             </Text>
-            <Button variant="destructive" size="sm" onClick={onDelete}>
-              <Icon size="sm" asChild>
-                <Trash2 />
-              </Icon>
-              Delete selected
-            </Button>
+            <HStack gap="2">
+              <Button variant="outline" size="sm" onClick={onMove}>
+                <Icon size="sm" asChild>
+                  <FolderInput />
+                </Icon>
+                Move selected
+              </Button>
+              <Button variant="destructive" size="sm" onClick={onDelete}>
+                <Icon size="sm" asChild>
+                  <Trash2 />
+                </Icon>
+                Delete selected
+              </Button>
+            </HStack>
           </Flex>
         ) : null}
       </Stack>
