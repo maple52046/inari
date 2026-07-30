@@ -16,23 +16,25 @@ ready, and report its URLs.
 ## Invocation
 
 ```
-/run-dev-server [-p <num> | --port <num>] [-h | --help]
+/run-dev-server [-p <num> | --port <num>] [-b <path> | --base-path <path>] [-h | --help]
 ```
 
-| Option                     | Required | Description                                                     |
-| -------------------------- | -------- | --------------------------------------------------------------- |
-| `-p <num>`, `--port <num>` | No       | Port to bind. Default: `3000`.                                  |
-| `-h`, `--help`             | No       | Print the help message below and stop. Do not start the server. |
+| Option                            | Required | Description                                                             |
+| --------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `-p <num>`, `--port <num>`        | No       | Port to bind. Default: `3000`.                                          |
+| `-b <path>`, `--base-path <path>` | No       | URL prefix to mount the app under, e.g. `/dashboard`. Sets `BASE_PATH`. |
+| `-h`, `--help`                    | No       | Print the help message below and stop. Do not start the server.         |
 
 ### Help message
 
 When `-h` / `--help` is given, print exactly this and take no further action:
 
 ```
-/run-dev-server [-p <num> | --port <num>] [-h | --help]
+/run-dev-server [-p <num> | --port <num>] [-b <path> | --base-path <path>] [-h | --help]
 
-  -p <num>, --port <num>   Port to bind (default: 3000)
-  -h, --help               Show this help message
+  -p <num>, --port <num>        Port to bind (default: 3000)
+  -b <path>, --base-path <path> URL prefix to mount the app under (default: none)
+  -h, --help                    Show this help message
 
 Starts the Inari Next.js dev server in the background and reports its URLs.
 ```
@@ -59,7 +61,10 @@ another. **A session's log can be stale**: a finished run keeps its output aroun
 with a footer recording its exit. Treat a server as running only when the
 process is alive and the port is bound (step 3), not because a log looks healthy.
 
-If one is already running on the target port, report its URLs and stop.
+If one is already running on the target port, report its URLs and stop — unless
+the requested base path differs from the one it was started with, which no
+amount of reloading changes. In that case report the mismatch and ask before
+restarting it.
 
 ### 3. Confirm the port is free
 
@@ -75,8 +80,9 @@ pgrep -af "next-server|next dev" || echo "(none)"
 ### 4. Start it
 
 ```bash
-npm run dev                 # default port
-npm run dev -- -p <num>     # explicit port
+npm run dev                              # default port, no prefix
+npm run dev -- -p <num>                  # explicit port
+BASE_PATH=<path> npm run dev             # mounted under a URL prefix
 ```
 
 Two requirements:
@@ -92,11 +98,39 @@ Wait for output matching `Ready in|Error|EADDRINUSE`, then read the log and
 report the `Local:` and `Network:` URLs plus the Next.js version. `EADDRINUSE`
 means step 3 missed a listener; report it rather than retrying blindly.
 
+When a base path is in effect, append it to the reported URLs — the bare origin
+404s, which otherwise reads as a broken server.
+
+## Base path (URL prefix)
+
+`BASE_PATH` mounts pages, Server Actions and `/_next` assets under a prefix.
+Next.js resolves it while loading `next.config.ts`, which happens **after** the
+dotenv files are read, so all three of these work and take precedence in this
+order:
+
+1. `-b` / `--base-path`, passed inline as `BASE_PATH=<path> npm run dev`.
+2. `BASE_PATH` already exported in the environment.
+3. `BASE_PATH` in `.env.local` (or `.env`).
+
+Because the value is baked into the running server, changing it means
+restarting: ask before killing a server this workflow did not start.
+
+Verify with the prefix, not the origin:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:<port><base-path>/connect
+```
+
+A `404` on `<base-path>/connect` together with a `200` on `/connect` means the
+prefix never reached the config — check for a stale server from a previous run
+before changing anything else.
+
 ## Operational notes
 
 - The dev script is `NODE_OPTIONS=--use-system-ca next dev`, so Node trusts the
   OS store; an internal CA installed there needs no extra flag. Env comes from
-  `.env.local`.
+  `.env.local`; the startup banner's `- Environments:` line lists every dotenv
+  file that was actually loaded.
 - A weak or missing `SESSION_SECRET` fails at request time, not startup, so a
   clean `✓ Ready` does not prove the app is usable.
 - `⚠ Fast Refresh had to perform a full reload due to a runtime error` right

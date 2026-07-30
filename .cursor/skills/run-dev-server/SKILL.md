@@ -18,5 +18,5 @@ this file as a thin reference so there is a single source of truth.
 Invocation:
 
 ```
-/run-dev-server [-p <num> | --port <num>] [-h | --help]
+/run-dev-server [-p <num> | --port <num>] [-b <path> | --base-path <path>] [-h | --help]
 ```

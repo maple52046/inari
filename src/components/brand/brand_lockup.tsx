@@ -1,4 +1,5 @@
 import { Icon, Stack, Text } from "@chakra-ui/react";
+import { PRODUCT_TAGLINE } from "@/lib/product";
 import { InariMark } from "./inari_mark";
 
 interface BrandLockupProps {
@@ -36,7 +37,7 @@ export function BrandLockup({
         </Text>
         {withTagline ? (
           <Text color="fg.muted" fontSize={large ? "sm" : "xs"}>
-            Manage S3-compatible object storage.
+            {PRODUCT_TAGLINE}
           </Text>
         ) : null}
       </Stack>

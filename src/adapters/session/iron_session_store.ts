@@ -6,6 +6,7 @@ import type {
   ConnectionSessionPort,
 } from "@/domain/session/ports";
 import type { S3Connection } from "@/domain/s3/models";
+import { getCookiePath } from "@/infrastructure/base_path";
 import {
   getSessionCookieSecure,
   getSessionSecret,
@@ -28,7 +29,7 @@ function sessionOptions(): SessionOptions {
       httpOnly: true,
       secure: getSessionCookieSecure(),
       sameSite: "lax",
-      path: "/",
+      path: getCookiePath(),
     },
   };
 }

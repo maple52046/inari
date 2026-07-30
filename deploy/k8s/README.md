@@ -24,6 +24,7 @@ The app is configured entirely through the `inari-env` Secret:
 | `SESSION_SECRET`                 | Yes                 | >= 32 chars; seals the credential cookie. The app fails fast if missing.                              |
 | `DEFAULT_S3_ENDPOINT`            | No                  | Pre-filled endpoint on `/connect`.                                                                    |
 | `SESSION_COOKIE_SECURE`          | Only for HTTP       | Defaults to `true`. Set to `false` for plaintext HTTP access (NodePort). See the warning under below. |
+| `BASE_PATH`                      | Only under a prefix | URL prefix the app is mounted under, e.g. `/dashboard`. See [URL prefix](#url-prefix).                |
 | `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host.                                   |
 
 > **Login bounces back to `/connect` over HTTP?** The session cookie is `Secure`
@@ -35,6 +36,20 @@ The app is configured entirely through the `inari-env` Secret:
 
 `ALLOWED_DEV_ORIGINS` is a dev-only setting and is ignored in the production
 image.
+
+### URL prefix
+
+Setting `BASE_PATH` moves pages, Server Actions and `/_next` assets under that
+prefix, so an Ingress can forward the prefixed path unchanged instead of
+rewriting it. Two things must follow:
+
+- **Update both probe paths in `deployment.yaml`** to `<prefix>/connect`.
+  Leaving them at `/connect` makes every probe 404 and the pod restart-loops.
+- **Keep the root filesystem writable.** The entrypoint substitutes the prefix
+  into `/app/.next` at start-up, so `readOnlyRootFilesystem: true` breaks it.
+  If you need a read-only filesystem, build an image with
+  `--build-arg BASE_PATH=<prefix>` instead; the runtime variable then has no
+  effect and the pod logs say so on start-up.
 
 ### Internal / corporate CA
 
@@ -121,4 +136,5 @@ kubectl -n inari rollout status deploy/inari
   image on `gcr.io/distroless/nodejs24-debian12:nonroot` and add a pod
   `securityContext` with `runAsNonRoot: true`.
 - Consider a `readOnlyRootFilesystem` with writable `emptyDir` mounts for
-  `/tmp` and the Next cache if you tighten the container further.
+  `/tmp` and the Next cache if you tighten the container further. This is
+  incompatible with a runtime `BASE_PATH`; see [URL prefix](#url-prefix).

@@ -12,5 +12,6 @@ Dockerfile
 docs
 README.md
 **/*.test.ts
+**/*.test.mjs
 vitest.config.ts
 src/test

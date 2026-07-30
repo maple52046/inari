@@ -182,9 +182,58 @@ kubectl -n inari rollout status deploy/inari
 | -------------------------------- | ------------ | -------------------------------------------------- |
 | `SESSION_SECRET`                 | Yes          | 用於 sealing `iron-session` cookie，至少 32 字元。 |
 | `DEFAULT_S3_ENDPOINT`            | No           | `/connect` 頁面預設 S3 endpoint。                  |
+| `BASE_PATH`                      | No           | 整個 app 掛載的 URL 前綴，例如 `/dashboard`。      |
 | `SERVER_ACTIONS_ALLOWED_ORIGINS` | Proxy 時需要 | 允許 Server Actions CSRF check 的 host 清單。      |
 
 `ALLOWED_DEV_ORIGINS` 只用於 Next.js dev server，不應用於 production image。
+
+## URL 前綴 (base path)
+
+設定 `BASE_PATH` 後，pages、Server Actions 與 `/_next` 靜態資源全部移到該前綴
+底下，reverse proxy 可以直接把帶前綴的 path 原樣轉發，不需要 rewrite：
+
+```nginx
+location /dashboard/ {
+    proxy_pass http://inari:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Session cookie 與 download preference cookie 的 `path` 會跟著前綴，因此同一個
+網域下掛在不同前綴的兩個 Inari 不會互相覆蓋 session。
+
+### 本機開發與 `npm run build`
+
+Next.js 在 **build 時**就把 base path 內嵌進 client bundle，所以本機使用時
+build 與 start 都要帶同一個值：
+
+```bash
+BASE_PATH=/dashboard npm run dev
+BASE_PATH=/dashboard npm run build && BASE_PATH=/dashboard npm run start
+```
+
+### Docker image
+
+Image 預設在 build 時埋入佔位前綴，由 `docker/start.mjs` 在容器啟動時替換成
+`BASE_PATH`，因此**同一個 image 可以跑在任何前綴底下**：
+
+```bash
+docker run -d -p 3000:3000 \
+  -e SESSION_SECRET=<at-least-32-characters> \
+  -e BASE_PATH=/dashboard \
+  "ghcr.io/maple52046/inari:$ts"
+```
+
+替換會就地改寫 `/app/.next`，所以容器的 filesystem 必須可寫
+（不能設 `readOnlyRootFilesystem: true`）。若要改用唯讀 filesystem，就在 build
+時鎖定前綴：
+
+```bash
+docker build --build-arg BASE_PATH=/dashboard -t inari:dashboard .
+```
+
+此時執行期的 `BASE_PATH` 不再有作用，容器啟動時會印出提示。
 
 ## 安全注意事項
 

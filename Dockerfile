@@ -13,6 +13,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Runtime-only secret; a throwaway here keeps any build-time evaluation from
 # tripping the fail-fast guard. It is never carried into the final image.
 ENV SESSION_SECRET=build-only-placeholder-secret-0000000000
+# Next.js inlines basePath at build time, so the image bakes a placeholder that
+# the entrypoint substitutes, keeping one image usable under any URL prefix.
+# Passing --build-arg BASE_PATH=/dashboard instead locks the image to that
+# prefix and makes the runtime BASE_PATH inert.
+ARG BASE_PATH=""
+ENV BASE_PATH=${BASE_PATH} \
+    DEFER_BASE_PATH=true
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -37,8 +44,9 @@ ENV NODE_ENV=production \
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-# Entrypoint wrapper forces HOSTNAME=0.0.0.0 (see docker/start.mjs).
-COPY docker/start.mjs ./start.mjs
+# Entrypoint wrapper forces HOSTNAME=0.0.0.0 and applies BASE_PATH to the build
+# output before the server loads (see docker/start.mjs).
+COPY docker/start.mjs docker/base_path.mjs ./
 EXPOSE 3000
 # The distroless nodejs image's entrypoint is `node`, so this runs the wrapper.
 CMD ["start.mjs"]

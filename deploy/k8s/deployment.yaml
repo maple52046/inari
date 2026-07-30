@@ -22,7 +22,7 @@ spec:
           ports:
             - name: http
               containerPort: 3000
-          # SESSION_SECRET, DEFAULT_S3_ENDPOINT and (optionally)
+          # SESSION_SECRET, DEFAULT_S3_ENDPOINT and (optionally) BASE_PATH and
           # SERVER_ACTIONS_ALLOWED_ORIGINS come from the Secret.
           envFrom:
             - secretRef:
@@ -37,6 +37,8 @@ spec:
             - name: ca
               mountPath: /etc/inari-ca
               readOnly: true
+          # Both probe paths must carry BASE_PATH when the app is mounted under
+          # a prefix, otherwise every probe 404s and the pod restart-loops.
           readinessProbe:
             httpGet:
               path: /connect

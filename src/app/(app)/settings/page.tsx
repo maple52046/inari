@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { Plug, Puzzle } from "lucide-react";
+import { Info, Plug, Puzzle } from "lucide-react";
 import {
   Flex,
   Heading,
   HStack,
   Icon,
+  Link,
   Span,
   Stack,
   StackSeparator,
@@ -12,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page_header";
+import { BrandLockup } from "@/components/brand/brand_lockup";
 import { ColorModeSelector } from "@/components/theme/color_mode";
 import { DisconnectButton } from "@/components/s3/disconnect_button";
 import {
@@ -19,6 +22,7 @@ import {
   getProviderPlugins,
 } from "@/infrastructure/composition";
 import { formatDateTime } from "@/lib/date";
+import { SOURCE_URL } from "@/lib/product";
 
 export const metadata = {
   title: "Settings - Inari",
@@ -32,7 +36,7 @@ function maskKeyId(value: string): string {
   return `${value.slice(0, 4)}${"•".repeat(Math.min(value.length - 4, 12))}`;
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Flex justify="space-between" gap="4" py="1.5" fontSize="sm">
       <Span color="fg.muted">{label}</Span>
@@ -158,6 +162,33 @@ export default async function SettingsPage() {
               Provider plugins add vendor-specific admin features. Standard
               features work without any plugin configured.
             </Text>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <SectionHeading icon={Info}>About</SectionHeading>
+        </CardHeader>
+        <CardContent>
+          <Stack gap="4">
+            <BrandLockup withTagline />
+            <Stack gap="0" separator={<StackSeparator />}>
+              <InfoRow
+                label="Source code"
+                value={
+                  <Link
+                    href={SOURCE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    color="brand.solid"
+                  >
+                    {SOURCE_URL.replace("https://", "")}
+                  </Link>
+                }
+              />
+              <InfoRow label="Licence" value="MIT" />
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

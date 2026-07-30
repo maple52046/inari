@@ -35,6 +35,7 @@ import { DeleteDialog } from "./delete_dialog";
 import { MoveDialog } from "./move_dialog";
 import { DownloadLinkProvider } from "./download_link_context";
 import { childOfPrefix } from "@/lib/object_path";
+import { getCookiePath } from "@/infrastructure/base_path";
 import type {
   PrefixUsage,
   PrefixUsageEntry,
@@ -123,7 +124,7 @@ export function ObjectBrowser({
     (mode: DownloadMode, nextExpiry: PresignExpiry): void => {
       const maxAge = 60 * 60 * 24 * 365;
       const value = serializeDownloadPreference({ mode, expiry: nextExpiry });
-      document.cookie = `${DOWNLOAD_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax`;
+      document.cookie = `${DOWNLOAD_COOKIE}=${value}; path=${getCookiePath()}; max-age=${maxAge}; samesite=lax`;
     },
     [],
   );
