@@ -1,0 +1,29 @@
+Source: inari
+Section: web
+Priority: optional
+Maintainer: maple52046 <maple52046@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Homepage: https://github.com/maple52046/inari
+Rules-Requires-Root: no
+
+Package: inari
+Architecture: amd64 arm64
+# The binary is statically linked, so it needs nothing at run time. systemd is
+# a Recommends rather than a Depends on purpose: the unit is the supported way
+# to run this, but the binary is perfectly usable without it, and a hard
+# dependency would make the package refuse to configure anywhere systemd is
+# absent -- including a container, where that failure also skips the postinst
+# that generates the session secret.
+Depends: ${misc:Depends}
+Recommends: systemd
+Description: Manage S3-compatible object storage
+ Inari is a web service for browsing and managing S3-compatible object
+ storage. Every storage operation runs server-side; credentials are supplied
+ by the user at connect time and sealed in an encrypted, http-only cookie that
+ only the server can decrypt.
+ .
+ The package installs a single static binary with the web interface compiled
+ in, so it has no runtime dependencies. The service is left stopped after
+ installation because it needs an endpoint configured first; see
+ /usr/share/doc/inari/README.Debian.

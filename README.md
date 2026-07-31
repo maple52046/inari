@@ -181,19 +181,32 @@ bundle，不是取代它，所以連線到 public endpoint 仍然正常：
 Container 不需要寫入權限，可以搭配 `readOnlyRootFilesystem: true` 與
 non-root user 執行。
 
-## systemd
+## Debian / Ubuntu 套件
 
-不使用 container 時，[`deploy/inari.service`](deploy/inari.service) 提供
-sandbox 完整的 unit，設定範例見
-[`deploy/config.example.env`](deploy/config.example.env)：
+不使用 container 時，建議走 `.deb`：
 
 ```bash
-sudo install -m 0755 inari-server /usr/local/bin/inari-server
-sudo install -d -m 0750 /etc/inari
-sudo install -m 0640 deploy/config.example.env /etc/inari/config.env
-sudo install -m 0644 deploy/inari.service /etc/systemd/system/inari.service
-sudo systemctl daemon-reload && sudo systemctl enable --now inari
+just deb                              # 產生 dist/inari_<version>_<arch>.deb
+sudo apt install ./dist/inari_0.2.0_amd64.deb
 ```
+
+安裝內容：binary 到 `/usr/bin/inari-server`、設定到 `/etc/inari/config.env`
+（dpkg conffile，升級不會覆蓋）、systemd unit，以及一份在安裝時產生、每台主機
+唯一的 `/etc/inari/secret.env`。
+
+**安裝後不會自動啟動**，因為此時還沒設定 endpoint。流程是：
+
+```bash
+sudo vi /etc/inari/config.env         # 至少設定 DEFAULT_S3_ENDPOINT
+sudo systemctl enable --now inari
+systemctl status inari && curl -sf localhost:3000/healthz
+```
+
+預設綁 `127.0.0.1:3000` 並使用純 HTTP，前面要自行架 TLS reverse proxy，套件
+刻意不代為設定；範例見 [`deploy/nginx.example.conf`](deploy/nginx.example.conf)。
+
+`apt remove` 會停掉服務並保留 `/etc/inari`；`apt purge` 連設定與 secret 一併
+移除。細節見 [`debian/README.Debian`](debian/README.Debian)。
 
 ## Kubernetes
 
@@ -226,15 +239,26 @@ kubectl -n inari rollout status deploy/inari
 ## URL 前綴 (base path)
 
 設定 `BASE_PATH` 後，SPA 與 API 都移到該前綴底下，reverse proxy 可以直接把帶
-前綴的 path 原樣轉發，不需要 rewrite：
+前綴的 path 原樣轉發，不需要 rewrite。完整範例見
+[`deploy/nginx.example.conf`](deploy/nginx.example.conf)：
 
 ```nginx
 location /dashboard/ {
-    proxy_pass http://inari:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    # 結尾不加 "/"，原始路徑才會原樣送達；加了會被剝掉前綴而全部 404。
+    proxy_pass http://127.0.0.1:3000;
+
+    # 必要：變更類 request 會比對 Origin 與 Host。轉發 nginx 自己的 upstream
+    # host 會讓每個 POST 都吃到 403。用 $http_host 而非 $host 以保留 port。
+    proxy_set_header Host $http_host;
+
+    # 必要：usage / cleanup 掃描可能跑數分鐘，nginx 預設 60s 會切成 504。
+    proxy_read_timeout 600s;
 }
 ```
+
+Inari 不讀 `X-Forwarded-*`，也從不組出指向自己的絕對 URL，所以「前面是 HTTPS、
+自己講 HTTP」不需要額外告知。但 **cookie 的 `Secure` 要維持開啟**：判斷依據是
+瀏覽器那一段連線，不是 nginx 到 Inari 那一段。
 
 前綴在**啟動時**套用：router 掛載到該前綴、cookie path 跟著縮限，並在
 `index.html` 注入對應的 `<base href>`，讓 bundle 內的相對資源路徑從掛載點解析。

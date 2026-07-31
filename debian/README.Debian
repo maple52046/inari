@@ -1,0 +1,83 @@
+Inari for Debian
+================
+
+The package installs a single static binary with the web interface compiled
+in. There is nothing else to deploy: no Node.js, no npm, no container runtime.
+
+Files
+-----
+
+  /usr/bin/inari-server              the server
+  /etc/inari/config.env              operator configuration (a dpkg conffile)
+  /etc/inari/secret.env              session secret, generated at install time
+  /usr/lib/systemd/system/inari.service
+
+Getting started
+---------------
+
+The service is left stopped after installation, because it needs an endpoint
+configured before it is of any use.
+
+  1. Edit /etc/inari/config.env. At minimum set DEFAULT_S3_ENDPOINT, which is
+     the address pre-filled on the connect screen. Users still supply their own
+     credentials; the server holds none of its own.
+
+  2. Start it:
+
+       sudo systemctl enable --now inari
+
+  3. Confirm:
+
+       systemctl status inari
+       curl -sf http://127.0.0.1:3000/healthz
+
+Configuration errors are start-up failures rather than request-time surprises.
+If the unit refuses to start, `journalctl -u inari` names the reason, and never
+echoes a secret value.
+
+The session secret
+------------------
+
+/etc/inari/secret.env is generated once, at install time, and is unique to the
+host. It seals the cookie holding each user's S3 credentials, so changing it
+signs everyone out. It is deliberately not a conffile: keeping it out of the
+package means an upgrade never prompts about a file containing a secret.
+
+Setting SESSION_SECRET in config.env overrides it, which is what to do when
+several hosts must share sessions behind a load balancer.
+
+Reverse proxy
+-------------
+
+The service listens on 127.0.0.1:3000 by default and speaks plain HTTP. Put a
+TLS-terminating proxy in front of it before exposing it to anything.
+
+The package intentionally does not configure one. An example nginx server block
+is shipped with the source at deploy/nginx.example.conf; two settings in it are
+load-bearing and easy to miss:
+
+  * The proxy must forward the browser's Host header (`proxy_set_header Host
+    $http_host`). Mutating requests are refused unless the Origin matches the
+    Host, which is what blocks cross-site submission of a session carrying S3
+    credentials. Forwarding the proxy's own upstream host makes every write
+    fail with 403.
+
+  * Usage and cleanup scans walk every object beneath their scope and can run
+    for minutes. nginx's 60-second default read timeout cuts them off as a 504.
+
+Leave SESSION_COOKIE_SECURE alone when a proxy terminates TLS. What decides it
+is the browser's connection, not the proxy's connection to this service.
+
+Serving under a URL prefix
+--------------------------
+
+Set BASE_PATH=/dashboard in config.env. The prefix is applied at run time, so
+no rebuild is needed and the health endpoints stay at the root, outside the
+prefix, where a monitoring check can reach them without knowing the mount
+point.
+
+Removing
+--------
+
+`apt remove` stops the service and leaves /etc/inari in place. `apt purge` also
+removes the configuration and the generated secret.

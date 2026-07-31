@@ -1,0 +1,48 @@
+#!/bin/sh
+# Post-installation configuration for the inari package.
+set -e
+
+CONF_DIR=/etc/inari
+SECRET_FILE="$CONF_DIR/secret.env"
+
+case "$1" in
+  configure)
+    # The session secret seals user credentials, so it must be unique per host.
+    # Generating it here rather than shipping one keeps a known value out of
+    # the package, and keeping it in its own file rather than the conffile
+    # means an upgrade never prompts about a file containing a secret.
+    if [ ! -e "$SECRET_FILE" ]; then
+      mkdir -p "$CONF_DIR"
+      old_umask="$(umask)"
+      umask 077
+      printf '# Generated at install time; unique to this host. Not a conffile.\nSESSION_SECRET=%s\n' \
+        "$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > "$SECRET_FILE"
+      umask "$old_umask"
+      chmod 0600 "$SECRET_FILE"
+    fi
+
+    # An empty second argument means this is a first install rather than an
+    # upgrade, which is the only time these instructions are worth printing.
+    if [ -z "$2" ]; then
+      cat <<'EOF'
+
+Inari is installed but not started, because it needs configuring first.
+
+  1. Edit  /etc/inari/config.env   (at least DEFAULT_S3_ENDPOINT)
+  2. Start systemctl enable --now inari
+  3. Check  systemctl status inari  and  curl localhost:3000/healthz
+
+A session secret was generated at /etc/inari/secret.env. The service listens on
+127.0.0.1:3000 and speaks plain HTTP; put a TLS-terminating reverse proxy in
+front of it before exposing it. See /usr/share/doc/inari/README.Debian.
+
+EOF
+    fi
+    ;;
+
+  abort-upgrade | abort-remove | abort-deconfigure) ;;
+esac
+
+#DEBHELPER#
+
+exit 0

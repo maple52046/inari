@@ -1,0 +1,48 @@
+#!/usr/bin/make -f
+# Packaging rules for Inari.
+#
+# The binary is not compiled here. It is built beforehand by
+# `skills/build-binary`, inside a musl container, because the TLS stack needs a
+# C toolchain matching the target and because a static binary is what makes the
+# package installable on any Debian or Ubuntu regardless of its glibc. This
+# file only assembles the package around that artefact.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+BINARY ?= dist/inari-server-linux-$(DEB_HOST_ARCH)
+
+%:
+	dh $@
+
+# Nothing to configure, compile, or test here: the repository root holds a
+# Node.js project and a Rust crate, either of which debhelper would otherwise
+# try to build on its own.
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_clean:
+
+override_dh_auto_install:
+	@test -f "$(BINARY)" || { \
+	  echo "Missing $(BINARY) -- run skills/build-binary/scripts/build_binary.sh first" >&2; \
+	  exit 1; \
+	}
+	install -D -m 0755 "$(BINARY)" debian/inari/usr/bin/inari-server
+	install -D -m 0644 deploy/config.example.env debian/inari/etc/inari/config.env
+	# The shipped configuration must not carry a usable secret: one is
+	# generated per host in postinst. A placeholder long enough to pass
+	# validation would let every install start with the same value.
+	sed -i -e 's|^SESSION_SECRET=.*|# SESSION_SECRET is generated per host at /etc/inari/secret.env.\n# Set it here only to share sessions across hosts behind a load balancer.\n# SESSION_SECRET=|' \
+	  debian/inari/etc/inari/config.env
+
+# The unit ships stopped and disabled. A fresh install cannot usefully start:
+# no endpoint is configured yet. An upgrade still restarts a running service,
+# which is `dh_installsystemd --restart-after-upgrade` behaviour and stays on.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start --name=inari
+
+# Already stripped by the release profile, and a static binary has no library
+# dependencies to compute.
+override_dh_strip:
+override_dh_shlibdeps:

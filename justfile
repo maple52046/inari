@@ -78,6 +78,14 @@ release: bindings
     cd {{web_dir}} && npm ci && npm run build
     cd {{server_dir}} && cargo build --release
 
+# Standalone static binary with the SPA embedded, built in a container.
+binary arch="amd64":
+    skills/build-binary/scripts/build_binary.sh linux {{arch}}
+
+# Debian package: binary, configuration, and systemd unit.
+deb arch="":
+    skills/build-deb/scripts/build_deb.sh {{arch}}
+
 # Start a MinIO for integration tests, reachable on :9100.
 minio-up:
     nerdctl run -d --name inari-test-minio --net host \

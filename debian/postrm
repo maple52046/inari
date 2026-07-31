@@ -1,0 +1,14 @@
+#!/bin/sh
+# Post-removal cleanup for the inari package.
+set -e
+
+if [ "$1" = "purge" ]; then
+  # Generated in postinst rather than shipped, so dpkg does not know about it
+  # and will not remove it on its own. dpkg removes the conffile itself.
+  rm -f /etc/inari/secret.env
+  rmdir /etc/inari 2>/dev/null || true
+fi
+
+#DEBHELPER#
+
+exit 0

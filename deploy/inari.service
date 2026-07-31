@@ -1,8 +1,11 @@
 # systemd unit for the single-binary deployment.
 #
-# Install:
-#   sudo install -m 0755 inari-server /usr/local/bin/inari-server
-#   sudo install -m 0640 -o root -g inari config.env /etc/inari/config.env
+# Normally installed by the .deb (`/build-deb`). For a manual install:
+#   sudo install -m 0755 inari-server /usr/bin/inari-server
+#   sudo install -d -m 0755 /etc/inari
+#   sudo install -m 0644 config.example.env /etc/inari/config.env
+#   printf 'SESSION_SECRET=%s\n' "$(openssl rand -base64 48)" \
+#     | sudo install -m 0600 /dev/stdin /etc/inari/secret.env
 #   sudo install -m 0644 inari.service /etc/systemd/system/inari.service
 #   sudo systemctl daemon-reload && sudo systemctl enable --now inari
 
@@ -14,10 +17,20 @@ Wants=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/usr/local/bin/inari-server
+ExecStart=/usr/bin/inari-server
 
-# Holds SESSION_SECRET, so it must not be world-readable. Kept out of the unit
-# itself because the unit is world-readable by design.
+# Two files, split by who owns the value. The secret is generated once at
+# install time and never edited; the rest is the operator's to change, which
+# keeps package upgrades from ever prompting about a file holding a secret.
+#
+# Both are read by systemd itself before privileges are dropped, so 0600
+# root:root works even though the service runs as an unprivileged dynamic user.
+# The leading `-` tolerates a manual install that never created the secret file
+# and set SESSION_SECRET in config.env instead.
+#
+# Order matters: config.env is read second, so an explicit SESSION_SECRET there
+# overrides the generated one.
+EnvironmentFile=-/etc/inari/secret.env
 EnvironmentFile=/etc/inari/config.env
 
 User=inari
