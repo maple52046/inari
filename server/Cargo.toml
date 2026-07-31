@@ -1,0 +1,77 @@
+[package]
+name = "inari-server"
+version = "0.2.0"
+edition = "2024"
+description = "Rust server for Inari: JSON API over S3-compatible storage plus the embedded SPA."
+license = "MIT"
+publish = false
+
+[dependencies]
+async-trait = "0.1"
+aws-credential-types = "1"
+# The default HTTPS client is replaced by the one in `adapters::s3::http_client`,
+# which is the only way to honour the connection's `skipTlsVerification` flag:
+# the SDK's own TLS layer exposes trust stores but no way to skip verification.
+aws-sdk-s3 = { version = "1", default-features = false, features = [
+    "sigv4a",
+    "http-1x",
+    "rt-tokio",
+] }
+aws-smithy-runtime-api = { version = "1", features = ["http-1x"] }
+aws-smithy-types = { version = "1", features = ["http-body-1-x"] }
+axum = "0.8"
+cookie = { version = "0.18", features = ["private", "percent-encode"] }
+dotenvy = "0.15"
+hkdf = "0.13"
+http = "1"
+http-body-util = "0.1"
+hyper-rustls = { version = "0.27", default-features = false, features = [
+    "http1",
+    "http2",
+    "native-tokio",
+    "aws-lc-rs",
+    "tls12",
+] }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "http2", "tokio"] }
+mime_guess = "2.0.5"
+rust-embed = "8.12.0"
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "tls12", "logging", "std"] }
+rustls-native-certs = "0.8"
+rustls-pemfile = "2"
+rustls-pki-types = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+thiserror = "2"
+time = "0.3"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "signal", "net", "time"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = [
+    "trace",
+    "request-id",
+    "util",
+    "limit",
+    "cors",
+    "set-header",
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Generates the TypeScript mirror of the wire types so the two sides of the
+# boundary cannot drift; see `cargo test export_bindings`.
+ts-rs = "12"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+# The integration suite reads its backend address and throwaway credentials from
+# the same git-ignored `.env` the server uses, rather than from a command line.
+dotenvy = "0.15"
+
+# Optimised for a small resident set and a small binary rather than raw
+# throughput: the dashboard is network-bound and shares a VM with MinIO.
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "z"

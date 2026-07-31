@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 # build-image
 
-Build the Inari distroless image from the repo `Dockerfile` and push it to the
+Build the Inari image from the repo `Dockerfile` and push it to the
 registry. Engine-agnostic: works with **docker** or **nerdctl** (same
 build/push CLI surface). Deployment is a separate concern — see the
 `deploy-k8s` skill.

@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Guidance for AI agents (and human contributors) working in this repository.
-This is a **TypeScript** project.
+This is primarily a **TypeScript** project; **Rust** is a secondary language
+used for the parts written in it.
 
 ## Before doing any development work
 
@@ -14,11 +15,18 @@ read and follow these project standards first:
   crossing boundaries is a domain-owned type; cross-layer work goes through
   abstractions (ports) implemented in outer layers and wired at the composition
   root.
-- **TypeScript style** - [`docs/standards/typescript-style.md`](docs/standards/typescript-style.md):
+- **TypeScript style** (primary language) - [`docs/standards/typescript-style.md`](docs/standards/typescript-style.md):
   Use Google TypeScript Style as the baseline: named exports, ES modules, strict
   types, no `any` without a documented reason, `Error`-based exceptions for
   exceptional failures, TSDoc/JSDoc on exported APIs, and Prettier/ESLint/tsc as
   enforcement.
+- **Rust style** (secondary language) - [`docs/standards/rust-style.md`](docs/standards/rust-style.md):
+  Use the Rust API Guidelines plus the kernel Rust guidelines as the baseline:
+  default `rustfmt` formatting, narrow visibility, newtypes over bare
+  primitives, `Result` with `thiserror`/`anyhow` instead of `unwrap`/`expect` on
+  runtime input, `// SAFETY:` on every `unsafe` block, rustdoc on every public
+  item with `# Errors` / `# Panics` / `# Safety` sections, and `rustfmt`/`clippy`
+  as enforcement.
 - **Comment content** - [`docs/standards/comment-content-rule.md`](docs/standards/comment-content-rule.md):
   a comment must belong to exactly one semantic category (Intent / Rationale /
   Contract / Invariant / Constraint / Risk / Side Effect / Domain Mapping /

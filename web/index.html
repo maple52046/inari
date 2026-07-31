@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" suppressHydrationWarning>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inari</title>
+    <meta name="description" content="Manage S3-compatible object storage." />
+    <link rel="icon" href="data:," />
+    <!--
+      The server rewrites this placeholder with the deployment's BASE_PATH before
+      serving the document, which is what lets one build run under any prefix.
+    -->
+    <script>
+      window.__INARI_BASE_PATH__ = "%INARI_BASE_PATH%";
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

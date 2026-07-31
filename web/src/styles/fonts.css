@@ -1,0 +1,49 @@
+/*
+ * Font faces, replacing `next/font/local`.
+ *
+ * The variable names are the contract with `src/theme/system.ts`, which maps
+ * them onto Chakra's font tokens. Renaming one here silently changes every
+ * heading, body, and monospace run in the product.
+ *
+ * Only the Latin subset is vendored. The display family carries Japanese glyphs
+ * and runs to several megabytes, which the product does not need because every
+ * heading it renders is Latin text.
+ */
+
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../assets/fonts/zen-kaku-gothic-new-500-latin.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../assets/fonts/zen-kaku-gothic-new-700-latin.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/fonts/inter-latin-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/jetbrains-mono-latin-variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Zen Kaku Gothic New", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}

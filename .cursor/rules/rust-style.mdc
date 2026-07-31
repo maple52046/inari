@@ -1,0 +1,27 @@
+---
+description: When writing or modifying Rust code, follow the project's style and architecture standards.
+globs: **/*.rs,**/build.rs,**/Cargo.toml
+alwaysApply: false
+---
+
+# Rust Style & Architecture
+
+Rust is a secondary language in this project (TypeScript is primary). When
+writing or modifying Rust code, follow:
+
+- [`docs/standards/rust-style.md`](../../docs/standards/rust-style.md): Use the
+  Rust API Guidelines plus the kernel Rust guidelines as the baseline: default
+  `rustfmt` formatting, narrow visibility, newtypes over bare primitives,
+  `Result` with `thiserror`/`anyhow` instead of `unwrap`/`expect` on runtime
+  input, `// SAFETY:` on every `unsafe` block, rustdoc on every public item with
+  `# Errors` / `# Panics` / `# Safety` sections, and `rustfmt`/`clippy` as
+  enforcement.
+- [`docs/standards/architecture.md`](../../docs/standards/architecture.md): the
+  Clean Architecture dependency rule - dependencies point inward only; the
+  domain never depends on adapters, drivers, or frameworks; cross-layer work
+  goes through ports (traits) implemented in outer layers and injected at the
+  composition root.
+
+Validate with `cargo fmt --check`,
+`cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test`
+before committing.

@@ -34,7 +34,7 @@ is a separate concern — see the `build-image` skill.
   `kubectl config current-context` and show it to the user; a wrong context is
   the main risk. Do not switch contexts on your own.
 - Never print or commit Secret values. Create Secrets from the user's local
-  `.env.local`, not by echoing credentials.
+  `.env`, not by echoing credentials.
 
 ## Workflow
 
@@ -50,8 +50,10 @@ is a separate concern — see the `build-image` skill.
 ```bash
 kubectl apply -f deploy/k8s/namespace.yaml
 # Secret from the user's local env file (preferred over the example manifest):
-kubectl -n inari create secret generic inari-env --from-env-file=.env.local
-# Internal CA for the S3 endpoint (adjust the source path):
+kubectl -n inari create secret generic inari-env --from-env-file=.env
+# Internal CA for the S3 endpoint (adjust the source path). The Deployment
+# points INARI_EXTRA_CA_CERTS at it, so it is trusted *in addition to* the
+# image's public bundle rather than replacing it:
 kubectl -n inari create configmap inari-ca \
   --from-file=ca.crt=/usr/local/share/ca-certificates/your-ca.crt
 kubectl apply -f deploy/k8s/deployment.yaml

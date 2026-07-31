@@ -2,8 +2,21 @@
 
 # dependencies
 /node_modules
+/web/node_modules
 /.pnp
 .pnp.js
+
+# rust
+/server/target
+
+# release artefacts from `/build-binary`
+/dist
+
+# vite
+/web/dist
+# `web/src/api/types.ts` is deliberately NOT ignored: it is the generated
+# TypeScript mirror of the wire types, and CI fails when it drifts from the
+# Rust definitions, which only works if the committed copy is the reference.
 
 # testing
 /coverage
@@ -18,6 +31,10 @@
 # misc
 .DS_Store
 *.pem
+# Exception: a self-signed certificate with no private key, needed by the test
+# asserting that an extra CA is added to the platform roots rather than
+# replacing them. The blanket rule above stays in force for everything else.
+!/server/tests/fixtures/test-ca.pem
 
 # debug
 npm-debug.log*

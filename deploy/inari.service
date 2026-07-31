@@ -1,0 +1,69 @@
+# systemd unit for the single-binary deployment.
+#
+# Install:
+#   sudo install -m 0755 inari-server /usr/local/bin/inari-server
+#   sudo install -m 0640 -o root -g inari config.env /etc/inari/config.env
+#   sudo install -m 0644 inari.service /etc/systemd/system/inari.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now inari
+
+[Unit]
+Description=Inari - S3-compatible object storage browser
+Documentation=https://github.com/maple52046/inari
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/inari-server
+
+# Holds SESSION_SECRET, so it must not be world-readable. Kept out of the unit
+# itself because the unit is world-readable by design.
+EnvironmentFile=/etc/inari/config.env
+
+User=inari
+Group=inari
+DynamicUser=yes
+
+Restart=on-failure
+RestartSec=2s
+# Must exceed the server's own drain deadline, or systemd escalates to SIGKILL
+# while requests are still finishing.
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+# Budget validated by measurement rather than guesswork: the process idles at
+# roughly 14 MiB and stays flat through exhaustive bucket scans, because
+# listings are paginated and the cleanup scan keeps only the candidates it will
+# return. Raising these should follow a recorded analysis, not a stuck deploy.
+MemoryHigh=128M
+MemoryMax=192M
+TasksMax=64
+
+# The server writes nothing: the SPA is inside the binary and no state is kept
+# on disk, so it can run against a read-only filesystem.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

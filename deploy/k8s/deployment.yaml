@@ -22,44 +22,52 @@ spec:
           ports:
             - name: http
               containerPort: 3000
-          # SESSION_SECRET, DEFAULT_S3_ENDPOINT and (optionally) BASE_PATH and
-          # SERVER_ACTIONS_ALLOWED_ORIGINS come from the Secret.
+          # SESSION_SECRET, DEFAULT_S3_ENDPOINT and optionally BASE_PATH come
+          # from the Secret.
           envFrom:
             - secretRef:
                 name: inari-env
           env:
-            # Trust the mounted internal CA. Node reads this at startup; the
-            # image also sets NODE_OPTIONS=--use-system-ca, but the distroless
-            # store has no internal CA, so this mounted file is what works.
-            - name: NODE_EXTRA_CA_CERTS
+            # Trusted in addition to the image's CA bundle, not instead of it:
+            # mounting over the bundle would leave the pod unable to reach any
+            # public endpoint. Equivalent to the old NODE_EXTRA_CA_CERTS.
+            - name: INARI_EXTRA_CA_CERTS
               value: /etc/inari-ca/ca.crt
           volumeMounts:
             - name: ca
               mountPath: /etc/inari-ca
               readOnly: true
-          # Both probe paths must carry BASE_PATH when the app is mounted under
-          # a prefix, otherwise every probe 404s and the pod restart-loops.
+          # Served at the root regardless of BASE_PATH, so a prefixed
+          # deployment does not have to keep its probes in step with its mount
+          # point. They also do no S3 work, so a storage outage cannot
+          # restart-loop the pod.
           readinessProbe:
             httpGet:
-              path: /connect
+              path: /readyz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 2
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /connect
+              path: /healthz
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 3
             periodSeconds: 20
+          # Sized from measurement: the process idles near 14 MiB and stays flat
+          # through exhaustive bucket scans, because listings are paginated and
+          # the cleanup scan keeps only the candidates it returns.
           resources:
             requests:
-              cpu: 100m
-              memory: 192Mi
+              cpu: 50m
+              memory: 32Mi
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 192Mi
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
             capabilities:
               drop:
                 - ALL

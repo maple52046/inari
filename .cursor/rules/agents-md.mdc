@@ -7,5 +7,5 @@ alwaysApply: true
 
 Before writing or modifying any code (or other project artifacts) in this
 repository, read the root [`AGENTS.md`](../../AGENTS.md) and follow the project
-standards it points to (architecture, TypeScript style, comment content, and the
-others listed there).
+standards it points to (architecture, TypeScript/Rust style, comment content,
+and the others listed there).

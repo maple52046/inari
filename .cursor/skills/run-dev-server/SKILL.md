@@ -1,10 +1,10 @@
 ---
 name: run-dev-server
 description: >-
-  Start the Inari Next.js dev server in the background and confirm it is ready,
-  reusing an already-running instance instead of starting a duplicate. Use when
-  the user runs /run-dev-server or asks to start, restart, or check the dev
-  server for local development.
+  Start the Inari development servers (Rust API and Vite SPA) in the background
+  and confirm they became ready, reusing already-running instances instead of
+  starting duplicates. Use when the user runs /run-dev-server or asks to start,
+  restart, or check the dev server for local development.
 disable-model-invocation: true
 ---
 
@@ -18,5 +18,5 @@ this file as a thin reference so there is a single source of truth.
 Invocation:
 
 ```
-/run-dev-server [-p <num> | --port <num>] [-b <path> | --base-path <path>] [-h | --help]
+/run-dev-server [-p <num> | --port <num>] [-b <path> | --base-path <path>] [--api-only] [-h | --help]
 ```

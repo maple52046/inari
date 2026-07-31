@@ -4,6 +4,9 @@ Manifests for running the Inari S3 manager on Kubernetes. The runtime image is
 pulled from the registry (`ghcr.io/maple52046/inari:<tag>`); do not transfer it
 with `save`/`load`.
 
+The image is a single static Rust binary with the web bundle embedded, on a
+`scratch` base — around 10 MB, no shell, no package manager, no interpreter.
+
 ## Contents
 
 | File                                                     | Purpose                                    |
@@ -19,13 +22,16 @@ with `save`/`load`.
 
 The app is configured entirely through the `inari-env` Secret:
 
-| Key                              | Required            | Notes                                                                                                 |
-| -------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`                 | Yes                 | >= 32 chars; seals the credential cookie. The app fails fast if missing.                              |
-| `DEFAULT_S3_ENDPOINT`            | No                  | Pre-filled endpoint on `/connect`.                                                                    |
-| `SESSION_COOKIE_SECURE`          | Only for HTTP       | Defaults to `true`. Set to `false` for plaintext HTTP access (NodePort). See the warning under below. |
-| `BASE_PATH`                      | Only under a prefix | URL prefix the app is mounted under, e.g. `/dashboard`. See [URL prefix](#url-prefix).                |
-| `SERVER_ACTIONS_ALLOWED_ORIGINS` | Only behind a proxy | Comma-separated hosts whose Origin differs from the forwarded Host.                                   |
+| Key                     | Required            | Notes                                                                                     |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`        | Yes                 | >= 32 chars; seals the credential cookie. The pod fails to start if missing or too short. |
+| `DEFAULT_S3_ENDPOINT`   | No                  | Pre-filled endpoint on `/connect`.                                                        |
+| `SESSION_COOKIE_SECURE` | Only for HTTP       | Defaults to `true`. Set to `false` for plaintext HTTP access (NodePort); see below.       |
+| `BASE_PATH`             | Only under a prefix | URL prefix the app is mounted under, e.g. `/dashboard`. See [URL prefix](#url-prefix).    |
+
+Configuration errors are start-up failures, not request-time surprises: a
+missing `SESSION_SECRET` or an unreadable extra CA stops the process with the
+reason named in the log, and the value is never echoed.
 
 > **Login bounces back to `/connect` over HTTP?** The session cookie is `Secure`
 > by default, and browsers silently drop `Secure` cookies on plaintext HTTP
@@ -34,30 +40,36 @@ The app is configured entirely through the `inari-env` Secret:
 > in the Secret for HTTP-only access. Note that `false` transmits the sealed S3
 > credentials over plaintext, so only use it on a trusted network.
 
-`ALLOWED_DEV_ORIGINS` is a dev-only setting and is ignored in the production
-image.
+## Probes
 
-### URL prefix
+`/healthz` and `/readyz` are served at the **root**, outside any `BASE_PATH`, so
+a prefixed deployment does not have to keep its probes in step with its mount
+point. Neither touches S3, so a storage outage cannot restart-loop the pod.
 
-Setting `BASE_PATH` moves pages, Server Actions and `/_next` assets under that
-prefix, so an Ingress can forward the prefixed path unchanged instead of
-rewriting it. Two things must follow:
+## URL prefix
 
-- **Update both probe paths in `deployment.yaml`** to `<prefix>/connect`.
-  Leaving them at `/connect` makes every probe 404 and the pod restart-loops.
-- **Keep the root filesystem writable.** The entrypoint substitutes the prefix
-  into `/app/.next` at start-up, so `readOnlyRootFilesystem: true` breaks it.
-  If you need a read-only filesystem, build an image with
-  `--build-arg BASE_PATH=<prefix>` instead; the runtime variable then has no
-  effect and the pod logs say so on start-up.
+Setting `BASE_PATH` mounts the SPA and the API under that prefix, so an Ingress
+can forward the prefixed path unchanged instead of rewriting it.
 
-### Internal / corporate CA
+Nothing else has to follow. The prefix is resolved at start-up and applied three
+ways: the router is mounted under it, the cookie path is scoped to it, and a
+matching `<base href>` is injected into `index.html` so the bundle's relative
+asset URLs resolve from the mount point. One image therefore serves any prefix,
+with no rebuild, no writable filesystem, and no probe changes.
 
-The S3 endpoint may use a certificate signed by an internal CA. The distroless
-runtime ships only public CAs, so the chain (issuing CA + root) is provided via
-the `inari-ca` ConfigMap, mounted at `/etc/inari-ca/ca.crt`, and the Deployment
-sets `NODE_EXTRA_CA_CERTS=/etc/inari-ca/ca.crt`. Without this Node fails with
-`UNABLE_TO_GET_ISSUER_CERT_LOCALLY`. Never disable TLS verification instead.
+## Internal / corporate CA
+
+The S3 endpoint may use a certificate signed by an internal CA. The image ships
+only public roots, so the chain (issuing CA + root) is provided via the
+`inari-ca` ConfigMap, mounted at `/etc/inari-ca`, with the Deployment setting
+`INARI_EXTRA_CA_CERTS=/etc/inari-ca/ca.crt`.
+
+That certificate is added to the platform roots rather than replacing them, so
+public endpoints keep working. Mounting a CA over the image's bundle instead
+would silently break every public endpoint.
+
+An unreadable or malformed file fails start-up rather than surfacing later as a
+confusing TLS error on every request. Never disable TLS verification instead.
 
 ## Quick start (example, ClusterIP)
 
@@ -65,7 +77,7 @@ sets `NODE_EXTRA_CA_CERTS=/etc/inari-ca/ca.crt`. Without this Node fails with
 kubectl apply -f namespace.yaml
 
 # Create the real Secret from your env file (preferred over the example):
-kubectl -n inari create secret generic inari-env --from-env-file=../../.env.local
+kubectl -n inari create secret generic inari-env --from-env-file=../../.env
 
 # Create the CA ConfigMap from your CA file:
 kubectl -n inari create configmap inari-ca \
@@ -97,9 +109,10 @@ Then open `http://<node-host>:32591`. Because this is plaintext HTTP, set
 otherwise the `Secure` session cookie is dropped and login bounces back to
 `/connect` (see the warning under [Configuration](#configuration)).
 
-If you reach the app through a reverse proxy and Server Actions return 403, add
-the exact browser origin host to `SERVER_ACTIONS_ALLOWED_ORIGINS` in the Secret
-and restart the pod.
+Mutating requests are rejected when their `Origin` is neither the request's own
+host nor the configured development origin. Behind a reverse proxy this means
+the proxy must preserve the `Host` header, which `proxy_set_header Host $host`
+does.
 
 ## Private image (pull secret)
 
@@ -130,11 +143,14 @@ kubectl -n inari set image deploy/inari inari=ghcr.io/maple52046/inari:<new-tag>
 kubectl -n inari rollout status deploy/inari
 ```
 
-## Hardening notes
+## Resources and hardening
 
-- The distroless image runs as root by default. To run as non-root, base the
-  image on `gcr.io/distroless/nodejs24-debian12:nonroot` and add a pod
-  `securityContext` with `runAsNonRoot: true`.
-- Consider a `readOnlyRootFilesystem` with writable `emptyDir` mounts for
-  `/tmp` and the Next cache if you tighten the container further. This is
-  incompatible with a runtime `BASE_PATH`; see [URL prefix](#url-prefix).
+The manifest already runs the pod as non-root (`65532`) with a read-only root
+filesystem and every capability dropped. The server writes nothing: the web
+bundle is inside the binary and no state is kept on disk.
+
+Requests and limits are sized from measurement rather than guesswork. The
+process idles near 14 MiB and stays flat through exhaustive bucket scans,
+because listings are paginated and the cleanup scan keeps only the candidates
+it will return. Raising the limit should follow a recorded analysis, not a
+stuck deploy.

@@ -1,17 +1,38 @@
-node_modules
-.next
+# Build inputs are copied explicitly by the Dockerfile; everything else only
+# slows the context transfer down or risks baking a local artefact into a layer.
 .git
 .gitignore
-coverage
-*.log
+.cursor
+.github
+docs
+deploy
+README.md
+LICENSE
+justfile
+
+# Secrets must never reach a build layer.
 .env
 .env.*
-Dockerfile
-.dockerignore
-.cursor
-docs
-README.md
-**/*.test.ts
-**/*.test.mjs
+
+# Rebuilt inside the image.
+node_modules
+web/node_modules
+web/dist
+server/target
+.next
+
+coverage
+*.log
+
+# The Next.js app, still present until cutover but not part of this image.
+src
+public
+next.config.ts
+next-env.d.ts
+package.json
+package-lock.json
+tsconfig.json
+tsconfig.tsbuildinfo
 vitest.config.ts
-src/test
+eslint.config.mjs
+docker

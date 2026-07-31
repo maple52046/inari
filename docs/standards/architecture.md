@@ -1,9 +1,9 @@
 # Architecture Standard
 
 This project follows **The Clean Architecture** (Robert C. Martin). This
-document adapts its single load-bearing rule - _The Dependency Rule_ - to a
-TypeScript codebase. It is self-contained so the project can be used and
-open-sourced independently.
+document adapts its single load-bearing rule - _The Dependency Rule_ - to this
+codebase: TypeScript as the primary language, Rust where it is used. It is
+self-contained so the project can be used and open-sourced independently.
 
 > Source of the underlying principles: Robert C. Martin, _The Clean
 > Architecture_, 2012. <https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html>
@@ -21,6 +21,11 @@ interfaces and provide implementations. Domain and use-case modules must not
 import HTTP frameworks, database clients, UI libraries, environment parsers, or
 other concrete drivers. If boundary tooling exists, configure ESLint or project
 references so these imports fail early.
+
+In Rust, enforce the same rule through crate and module boundaries: the domain
+crate or module depends on no async runtime, HTTP client, or storage SDK, and
+its `Cargo.toml` dependency list is the visible proof. Splitting layers into
+separate crates makes a violation a build error rather than a review comment.
 
 ## Layers (inner to outer)
 
@@ -51,6 +56,11 @@ layer. Inject them through constructors or explicit function parameters. Adapter
 classes or functions implement those interfaces in outer modules, and the
 composition root wires concrete implementations to use cases. Do not hide this
 wiring behind global singletons.
+
+Define Rust ports as small traits owned by the domain or use-case layer. Inject
+them as generic parameters with trait bounds when the implementation is known at
+compile time, or as `Arc<dyn Port>` when it must be selected at runtime; either
+way the choice is made in `main` (the composition root), not by the core.
 
 ## Project rules derived from the above
 
@@ -83,6 +93,18 @@ Keep imports pointing inward: `infrastructure` and `adapters` may import
 `application` and `domain`; `application` may import `domain`; `domain` imports
 neither adapters nor infrastructure. Feature folders are fine when they preserve
 the same dependency direction internally.
+
+A Rust component mirrors the same layering, either as modules inside one crate
+or as separate crates in a workspace:
+
+```text
+src/
+  domain/          # entities, value objects, port traits; no I/O dependencies
+  application/     # use cases depending only on domain and its port traits
+  adapters/        # trait implementations translating to the outside world
+  infrastructure/  # concrete clients, runtime, config, process glue
+  main.rs          # composition root; wires adapters to use cases
+```
 
 ## Testability consequence
 

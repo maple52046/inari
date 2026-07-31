@@ -1,34 +1,47 @@
 # syntax=docker/dockerfile:1
 
-# --- Stage 1: install dependencies (cached on lockfile) ---
-FROM node:24-bookworm-slim AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
+# --- Stage 1: build the SPA -------------------------------------------------
+FROM node:24-alpine AS web
+WORKDIR /build
+COPY web/package.json web/package-lock.json ./
 RUN npm ci
-
-# --- Stage 2: build the standalone Next.js server ---
-FROM node:24-bookworm-slim AS builder
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-# Runtime-only secret; a throwaway here keeps any build-time evaluation from
-# tripping the fail-fast guard. It is never carried into the final image.
-ENV SESSION_SECRET=build-only-placeholder-secret-0000000000
-# Next.js inlines basePath at build time, so the image bakes a placeholder that
-# the entrypoint substitutes, keeping one image usable under any URL prefix.
-# Passing --build-arg BASE_PATH=/dashboard instead locks the image to that
-# prefix and makes the runtime BASE_PATH inert.
-ARG BASE_PATH=""
-ENV BASE_PATH=${BASE_PATH} \
-    DEFER_BASE_PATH=true
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY web/ ./
+# The bundle carries no deployment prefix: asset URLs are relative and the
+# server injects a <base href> at request time, so one image runs under any
+# BASE_PATH. This is what replaced the old start-up rewrite of the build output.
 RUN npm run build
 
-# --- Stage 3: minimal distroless runtime ---
-FROM gcr.io/distroless/nodejs24-debian12 AS runner
-WORKDIR /app
+# --- Stage 2: build a static binary with the SPA embedded -------------------
+# Alpine's toolchain is musl-native, so the C dependencies of the TLS stack
+# build without a cross-compiler and the result is a fully static binary.
+FROM rust:1.96-alpine AS server
+WORKDIR /build
+RUN apk add --no-cache musl-dev cmake make perl g++
+# `rust-toolchain.toml` is deliberately not copied: the base image tag already
+# pins the version, and the file would make rustup re-resolve and re-download a
+# toolchain the image already has.
+COPY server/Cargo.toml server/Cargo.lock ./
+COPY server/src ./src
+COPY server/tests ./tests
+COPY --from=web /build/dist ../web/dist
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo build --release && cp target/release/inari-server /inari-server
 
-ARG VERSION=0.1.0
+# --- Stage 3: binary-only export target -------------------------------------
+# Targeted by `skills/build-binary` with `--output type=local` to lift the
+# binary out without running anything, which is what makes extracting a
+# foreign-architecture build possible.
+#
+# Deliberately placed before `runner`: the last stage is what an untargeted
+# `docker build` produces, and that must stay the runtime image.
+FROM scratch AS export
+COPY --from=server /inari-server /inari-server
+
+# --- Stage 4: nothing but the binary ----------------------------------------
+FROM scratch AS runner
+
+ARG VERSION=0.2.0
 LABEL org.opencontainers.image.title="Inari ${VERSION}" \
       org.opencontainers.image.description="Manage S3-compatible object storage." \
       org.opencontainers.image.source="https://github.com/maple52046/inari" \
@@ -36,17 +49,20 @@ LABEL org.opencontainers.image.title="Inari ${VERSION}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="MIT"
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    NODE_OPTIONS=--use-system-ca
-# Standalone output ships its own trimmed node_modules and server.js.
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-# Entrypoint wrapper forces HOSTNAME=0.0.0.0 and applies BASE_PATH to the build
-# output before the server loads (see docker/start.mjs).
-COPY docker/start.mjs docker/base_path.mjs ./
+# The server verifies backend certificates against the system trust store, which
+# an empty image does not have. Carrying Alpine's bundle keeps the behaviour the
+# Node version got from --use-system-ca.
+#
+# To trust an internal CA, mount it somewhere else and point
+# INARI_EXTRA_CA_CERTS at it. Mounting over this bundle would replace the public
+# roots instead of adding to them, breaking every public endpoint.
+COPY --from=server /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=server /inari-server /inari-server
+
+ENV PORT=3000 \
+    HOST=0.0.0.0 \
+    INARI_ENV=production
 EXPOSE 3000
-# The distroless nodejs image's entrypoint is `node`, so this runs the wrapper.
-CMD ["start.mjs"]
+
+# No shell exists in this image, so this must stay exec form.
+ENTRYPOINT ["/inari-server"]
