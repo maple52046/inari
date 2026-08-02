@@ -9,7 +9,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
-use super::handlers::{buckets, cleanup, health, objects, session, spa};
+use super::handlers::{buckets, capacity, cleanup, health, objects, session, spa};
 use super::origin_guard::{self, AllowedOrigin};
 use super::state::AppState;
 
@@ -28,6 +28,7 @@ pub fn build(state: AppState) -> Router {
         .merge(buckets::routes())
         .merge(objects::routes())
         .merge(cleanup::routes())
+        .merge(capacity::routes())
         .layer(axum::middleware::from_fn_with_state(
             allowed_origin,
             origin_guard::enforce,

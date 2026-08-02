@@ -35,14 +35,8 @@ import { MoveDialog } from "./move_dialog";
 import { DownloadLinkProvider } from "./download_link_context";
 import { childOfPrefix } from "@/lib/object_path";
 import { getCookiePath } from "@/lib/base_path";
-import type {
-  PrefixUsage,
-  PrefixUsageEntry,
-} from "@/domain/s3/usage";
-import {
-  loadObjectsAction,
-  scanPrefixUsageAction,
-} from "@/api/actions";
+import { useFolderUsage } from "./use_folder_usage";
+import { loadObjectsAction } from "@/api/actions";
 
 /** What a measured folder size does and does not account for. */
 const MEASURE_HINT =
@@ -82,7 +76,6 @@ export function ObjectBrowser({
   /** Refetches the current page, replacing the router refresh of the Next.js version. */
   onRefresh: () => void;
 }) {
-
   const [objects, setObjects] = useState<ObjectSummary[]>(initialPage.objects);
   const [prefixes, setPrefixes] = useState<CommonPrefix[]>(
     initialPage.prefixes,
@@ -109,9 +102,7 @@ export function ObjectBrowser({
   const [moveTargets, setMoveTargets] = useState<ObjectSummary[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
 
-  const [usage, setUsage] = useState<PrefixUsage | undefined>();
-  const [usageScanning, setUsageScanning] = useState(false);
-  const [usageError, setUsageError] = useState<string | undefined>();
+  const usage = useFolderUsage(bucket, prefix);
 
   const [downloadMode, setDownloadMode] = useState<DownloadMode>(
     initialDownloadPreference.mode,
@@ -181,36 +172,6 @@ export function ObjectBrowser({
   const handleFilterChange = useCallback((next: ObjectFilter) => {
     setFilter(next);
   }, []);
-
-  /**
-   * Measures the current location. Only ever called from the panel's button,
-   * because it walks every object beneath the prefix.
-   */
-  async function measureUsage(): Promise<void> {
-    setUsageScanning(true);
-    setUsageError(undefined);
-    const result = await scanPrefixUsageAction({ bucket, prefix });
-    setUsageScanning(false);
-    if (!result.ok) {
-      setUsage(undefined);
-      setUsageError(result.message);
-      return;
-    }
-    setUsage(result.usage);
-  }
-
-  // Keyed by full prefix so the listing's folder rows can look themselves up;
-  // the scan reports names relative to the location it measured. Only folders
-  // are taken, since the rows for objects already carry their own size.
-  const folderUsage = useMemo(() => {
-    const byPrefix = new Map<string, PrefixUsageEntry>();
-    for (const entry of usage?.entries ?? []) {
-      if (entry.isPrefix) {
-        byPrefix.set(`${prefix}${entry.name}`, entry);
-      }
-    }
-    return byPrefix;
-  }, [usage, prefix]);
 
   async function loadMore(): Promise<void> {
     if (!token) {
@@ -400,20 +361,20 @@ export function ObjectBrowser({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={measureUsage}
-                disabled={usageScanning}
+                onClick={() => usage.measure()}
+                disabled={usage.measuring}
                 title={MEASURE_HINT}
               >
-                {usageScanning ? (
+                {usage.measuring ? (
                   <Spinner size="sm" />
                 ) : (
                   <Icon size="sm" asChild>
                     <ScanLine />
                   </Icon>
                 )}
-                {usageScanning
+                {usage.measuring
                   ? "Measuring…"
-                  : usage
+                  : usage.measured || usage.automatic
                     ? "Re-measure folder sizes"
                     : "Measure folder sizes"}
               </Button>
@@ -426,7 +387,7 @@ export function ObjectBrowser({
                 selected={selected}
                 allSelected={allSelected}
                 showStorageClass={showStorageClass}
-                folderUsage={folderUsage}
+                folderUsage={usage.byPrefix}
                 sort={sort}
                 onSortChange={setSort}
                 onToggle={toggle}
@@ -442,7 +403,7 @@ export function ObjectBrowser({
                 prefixes={prefixes}
                 objects={visible}
                 selected={selected}
-                folderUsage={folderUsage}
+                folderUsage={usage.byPrefix}
                 onToggle={toggle}
                 onOpenDetail={setDetail}
                 onMoveOne={openMoveOne}
@@ -453,7 +414,7 @@ export function ObjectBrowser({
         )}
 
         {loadError ? <Alert variant="error">{loadError}</Alert> : null}
-        {usageError ? <Alert variant="error">{usageError}</Alert> : null}
+        {usage.error ? <Alert variant="error">{usage.error}</Alert> : null}
 
         <Flex
           color="fg.muted"

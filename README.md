@@ -25,8 +25,12 @@ credentials 呼叫 S3 API。
   `lastModified ASC, size DESC, bucket ASC, key ASC` 排序，預估可釋放空間，
   並在確認後依 bucket 分組刪除。
 - Bucket 首頁 (`/buckets`) 內建 usage 掃描，以 S3 list scan 估算 bucket/object
-  usage，並以圓餅圖呈現各 bucket 佔比。掃描一律手動觸發，結果存於
+  usage，並以圓餅圖呈現各 bucket 佔比。預設一律手動觸發，結果存於
   `sessionStorage`，關閉 tab 即清除。
+- 選配的 **shared capacity index**（`INARI_CAPACITY_INDEX=shared`）：由 server
+  以一組唯讀 scanner key 維護一份跨 session 共享的容量索引。登入即看到既有數字，
+  超過 TTL 的數字先呈現再於背後重新量測，刪除／搬移後自動重掃受影響的路徑。
+  詳見 [shared capacity index](#shared-capacity-index)。
 - Dark theme 預設，支援 light/system theme。
 - Responsive UI 與 lucide icons。
 
@@ -228,7 +232,11 @@ kubectl -n inari rollout status deploy/inari
 | `SESSION_SECRET`           | Yes      | Sealing session cookie 的秘密，至少 32 字元。                      |
 | `HOST` / `PORT`            | No       | 綁定位址，預設 `0.0.0.0:3000`。                                    |
 | `INARI_ENV`                | No       | `development` 會放寬 cookie Secure 預設並允許 Vite origin。        |
-| `DEFAULT_S3_ENDPOINT`      | No       | `/connect` 頁面預設 S3 endpoint。                                  |
+| `DEFAULT_S3_ENDPOINT`      | No       | 連線目標 endpoint。                                                |
+| `DEFAULT_S3_REGION`        | No       | 連線目標 region，預設 `us-east-1`。                                |
+| `DEFAULT_S3_FORCE_PATH_STYLE` | No    | Path-style addressing，預設 `true`。                               |
+| `DEFAULT_S3_SKIP_TLS_VERIFICATION` | No | 跳過憑證驗證，預設 `false`。                                   |
+| `INARI_LOCK_CONNECTION`    | No       | 固定上述連線目標，使用者只提供憑證；server 端強制。                |
 | `BASE_PATH`                | No       | 整個 app 掛載的 URL 前綴，例如 `/dashboard`。                      |
 | `SESSION_COOKIE_SECURE`    | No       | 覆寫 cookie 的 `Secure` 屬性。                                     |
 | `INARI_EXTRA_CA_CERTS`     | No       | 額外信任的 CA PEM 路徑，附加於 OS trust store 之上。               |
@@ -271,6 +279,112 @@ Health probe 刻意留在 root，不受前綴影響：
 curl http://localhost:3000/healthz   # liveness，不呼叫 S3
 curl http://localhost:3000/readyz    # readiness
 ```
+
+## 兩種佈署模式
+
+這個專案最初的目標是管理多個 S3 backend，所以 `/connect` 允許使用者自行輸入
+連線目標。那在內部開發、或使用者自行 clone 建置連自己的儲存時很方便，但放在
+公開主機上，等於讓任何能開啟連線頁的人指揮 server 對它連得到的任何位址發出
+請求並看到結果——包含你內網的主機。
+
+因此提供兩種模式，差別只在一個旗標。
+
+### 彈性模式（預設）
+
+`DEFAULT_S3_*` 只是連線頁的初始值，使用者可以改。適合內部 dev 與自行建置。
+
+### 固定模式（正式環境建議）
+
+```bash
+DEFAULT_S3_ENDPOINT=https://minio.internal
+DEFAULT_S3_REGION=eu-west-2
+INARI_LOCK_CONNECTION=true
+```
+
+連線目標完全由 operator 決定，**使用者只提供 access key 與 secret**。連線頁
+收合成兩個欄位，endpoint 以唯讀顯示，Advanced settings 整段消失。
+
+**重點在 server 端。** endpoint、region、force path style、skip TLS
+verification 四項只要與設定不符一律以 400 拒絕，所以用 curl 繞過隱藏欄位沒有
+用。隱藏欄位只是呈現，真正的限制在後端。特別是 `skipTlsVerification`：既然
+operator 決定了要驗證憑證，使用者就不該有辦法替自己的 session 關掉它。
+
+### 防呆
+
+`INARI_LOCK_CONNECTION` 必須與 `DEFAULT_S3_ENDPOINT` 成對出現，否則啟動失敗，
+而不是默默鎖到範例網址上。旗標值拼錯（例如 `ture`）同樣是啟動失敗，不會被當成
+關閉——安全開關若因打錯字而靜默失效，是最糟的失敗模式。
+
+## Shared capacity index
+
+預設關閉。開啟後，server 會維護一份跨 session 共享的 prefix 容量索引，取代原本
+「每個瀏覽器分頁各自掃描、各自快取」的模式。
+
+啟用條件是結構性的，不只是政策：`INARI_CAPACITY_INDEX=shared` **要求**
+`INARI_LOCK_CONNECTION=true`。scanner key 只對單一 backend 有效，若使用者可以把
+server 指向任意 endpoint，共享索引就沒有一致的定義。兩者不一致時啟動即失敗。
+
+運作方式：
+
+- **索引**是記憶體中的 prefix 樹，每個節點持有其子樹的總量，因此任意層級的
+  rollup 是一次查表。它是可重建的快取而非事實來源，重啟後重掃即可，所以不需要
+  可寫入的 volume。
+- **刷新以需求驅動**。讀到過期的位置會立刻回傳既有數字並在背後排入重新量測，
+  前端輪詢等待結果。背景 sweep 的職責因此縮小為暖機與保溫。
+- **刪除／搬移**後會重掃受影響的最小路徑，而不是加減推算——批次刪除的回應並不
+  帶大小，推算等於相信呼叫端給的數字。
+- **成本上限**由 `INARI_CAPACITY_SCAN_RATE`（每秒 LIST 請求數）決定，這是唯一
+  能在 backend 規模未知時仍然有效的閘門。樹的大小另有深度與節點數上限；碰到上限
+  時失去的是解析度而非準確度——該位置仍被精確量測，只是不再往下細分。
+
+安全上的取捨：
+
+- scanner key **必須是 list-only**（`s3:ListBucket` 與 `s3:ListAllMyBuckets`），
+  **不要給 `s3:GetObject`**。這樣即使 server 被攻陷，洩漏的是 key 名稱與大小，
+  不是物件內容。
+- 這推翻了原本「server 不持有任何憑證」的設計。scanner 憑證有自己的型別，不與
+  session 的 `S3Connection` 共用，因此不可能被誤用於服務某個使用者的請求。
+- API **在 handler 層**用呼叫者自己的憑證過濾可見的 bucket，不在 React 元件層——
+  瀏覽器可以直接打 API，元件隱藏列不構成邊界。
+- bucket 層級的過濾看不見 prefix-scoped 的 IAM policy。若部署中有這類 policy，
+  開啟 `INARI_CAPACITY_VERIFY_PREFIX_ACCESS`，回應前會用呼叫者的憑證探測該
+  prefix。
+
+### Scanner key 的 policy
+
+Scanner 只會呼叫兩個 S3 動作：`ListBuckets`（決定要掃哪些 bucket）與
+`ListObjectsV2`（實際量測）。因此權限只需要這兩項，用萬用字元涵蓋所有 bucket，
+新增 bucket 時不必回來改 policy：
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ScanEveryBucket",
+      "Effect": "Allow",
+      "Action": ["s3:ListAllMyBuckets", "s3:ListBucket"],
+      "Resource": "arn:aws:s3:::*"
+    },
+    {
+      "Sid": "NeverReadContent",
+      "Effect": "Deny",
+      "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+      "Resource": "arn:aws:s3:::*/*"
+    }
+  ]
+}
+```
+
+第二段是刻意加的。單靠「不授予」`s3:GetObject` 已經足夠，但明確 Deny 讓
+「scanner 永遠讀不到物件內容」變成即使日後有人把這把 key 加進別的 group 或
+policy 也推翻不了的性質——Deny 在 IAM 中優先於任何 Allow。
+
+一個容易踩的陷阱：`s3:ListBucket` 的資源是 **bucket** 的 ARN
+（`arn:aws:s3:::*`），不是物件的 ARN（`arn:aws:s3:::*/*`）。寫成後者不會報錯，
+只會讓每次掃描都收到 `AccessDenied`。
+
+完整設定項見 [`.env.example`](.env.example)。
 
 ## 安全注意事項
 

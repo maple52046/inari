@@ -107,12 +107,12 @@ export function BucketList({
     );
   }, [buckets, query]);
 
-  // Reading the same cache the scanner writes is what lets a scan started in the
-  // panel above land on these cards without lifting state into a provider.
-  const cached = useCachedUsage(cacheStamp);
+  // Reading the same source the scanner writes is what lets a scan started in
+  // the panel above land on these cards without lifting state into a provider.
+  const usage = useCachedUsage(cacheStamp);
   const usageByBucket = useMemo(
-    () => toUsageByBucket(cached?.scopes ?? []),
-    [cached],
+    () => toUsageByBucket(usage.scopes),
+    [usage.scopes],
   );
 
   return (
@@ -146,7 +146,7 @@ export function BucketList({
       ) : (
         <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap="4">
           {filtered.map((bucket) => {
-            const usage = usageByBucket.get(bucket.name);
+            const bucketUsage = usageByBucket.get(bucket.name);
             return (
               <Link
                 key={bucket.name}
@@ -183,7 +183,12 @@ export function BucketList({
                       </Text>
                     </Box>
                   </Stack>
-                  <UsageFooter usage={usage} scannedAt={cached?.scannedAt} />
+                  <UsageFooter
+                    usage={bucketUsage}
+                    scannedAt={
+                      usage.scannedAtByScope.get(bucket.name) ?? usage.scannedAt
+                    }
+                  />
                 </Card>
               </Link>
             );

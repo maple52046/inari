@@ -1,6 +1,7 @@
 //! HTTP adapter: the JSON API, the embedded SPA, and everything Axum-shaped.
 
 pub mod dto;
+pub mod dto_capacity;
 pub mod dto_cleanup;
 pub mod errors;
 pub mod extract;

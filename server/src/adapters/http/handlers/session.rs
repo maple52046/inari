@@ -8,7 +8,9 @@ use axum::{Json, Router};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::adapters::http::dto::{ConnectionRequest, SessionDto, mask_key_id};
+use crate::adapters::http::dto::{
+    ConnectionDefaultsDto, ConnectionRequest, SessionDto, mask_key_id,
+};
 use crate::adapters::http::errors::ApiError;
 use crate::adapters::http::extract::read_session;
 use crate::adapters::http::state::AppState;
@@ -31,11 +33,12 @@ async fn current(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<SessionDto>, ApiError> {
-    let default_endpoint = state.config().default_endpoint.clone();
+    let connection = ConnectionDefaultsDto::from(&state.config().connection);
     // A cookie that cannot be opened, which is what a rotated secret looks
     // like, is treated as "not connected" so the user is simply asked to
     // reconnect instead of meeting an error page.
     let session = read_session(&headers, &state).unwrap_or(None);
+    let capacity_index = state.capacity_index().is_enabled();
 
     Ok(Json(match session {
         Some(session) => SessionDto {
@@ -47,7 +50,8 @@ async fn current(
             access_key_id_masked: Some(mask_key_id(&session.connection.access_key_id)),
             created_at: session.created_at.format(&Rfc3339).ok(),
             last_used_at: session.last_used_at.format(&Rfc3339).ok(),
-            default_endpoint,
+            connection,
+            capacity_index,
         },
         None => SessionDto {
             connected: false,
@@ -58,7 +62,8 @@ async fn current(
             access_key_id_masked: None,
             created_at: None,
             last_used_at: None,
-            default_endpoint,
+            connection,
+            capacity_index,
         },
     }))
 }
@@ -71,7 +76,9 @@ async fn connect(
     State(state): State<AppState>,
     Json(request): Json<ConnectionRequest>,
 ) -> Result<Response, ApiError> {
-    let connection = request.validate().map_err(ApiError::Validation)?;
+    let connection = request
+        .validate(&state.config().connection)
+        .map_err(ApiError::Validation)?;
     test_storage_connection(state.storage_factory(), &connection).await?;
 
     let now = OffsetDateTime::now_utc();
@@ -94,7 +101,9 @@ async fn test(
     State(state): State<AppState>,
     Json(request): Json<ConnectionRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let connection = request.validate().map_err(ApiError::Validation)?;
+    let connection = request
+        .validate(&state.config().connection)
+        .map_err(ApiError::Validation)?;
     test_storage_connection(state.storage_factory(), &connection).await?;
     Ok(StatusCode::NO_CONTENT)
 }

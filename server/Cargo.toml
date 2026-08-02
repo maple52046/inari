@@ -66,6 +66,9 @@ uuid = { version = "1", features = ["v4"] }
 # The integration suite reads its backend address and throwaway credentials from
 # the same git-ignored `.env` the server uses, rather than from a command line.
 dotenvy = "0.15"
+# `test-util` gives the pacer's tests a paused clock, so asserting that scanning
+# is spread over time does not mean waiting for it.
+tokio = { version = "1", features = ["test-util"] }
 
 # Optimised for a small resident set and a small binary rather than raw
 # throughput: the dashboard is network-bound and shares a VM with MinIO.

@@ -21,9 +21,12 @@ import type {
 import type { PrefixUsage } from "@/domain/s3/usage";
 import { ApiError, basePath, messageFor, request } from "./client";
 import type { ConnectState } from "./connect_state";
+import type { ConnectionDefaultsDto } from "./types";
 import { reviveCleanupCandidate, reviveObjectListPage } from "./revive";
 import type {
   BucketSummaryDto,
+  CapacityScanAcceptedDto,
+  CapacityViewDto,
   CleanupBucketDeleteResultDto,
   CleanupPlanDto,
   DeleteResultDto,
@@ -36,33 +39,35 @@ import type {
 
 /** Discriminated result returned to client components from list loading. */
 export type LoadObjectsResult =
-  | { ok: true; page: ObjectListPage }
-  | { ok: false; message: string };
+  { ok: true; page: ObjectListPage } | { ok: false; message: string };
 
 /** Discriminated result returned from a batch delete. */
 export type DeleteObjectsActionResult =
-  | { ok: true; result: DeleteResult }
-  | { ok: false; message: string };
+  { ok: true; result: DeleteResult } | { ok: false; message: string };
 
 /** Discriminated result returned from a batch move. */
 export type MoveObjectsActionResult =
-  | { ok: true; result: MoveResult }
-  | { ok: false; message: string };
+  { ok: true; result: MoveResult } | { ok: false; message: string };
 
 /** Discriminated result returned when listing move destinations. */
 export type BucketNamesResult =
-  | { ok: true; buckets: string[] }
-  | { ok: false; message: string };
+  { ok: true; buckets: string[] } | { ok: false; message: string };
 
 /** Discriminated result returned when requesting a download URL. */
 export type DownloadUrlResult =
-  | { ok: true; url: string; expiresAt: number }
-  | { ok: false; message: string };
+  { ok: true; url: string; expiresAt: number } | { ok: false; message: string };
 
 /** Discriminated result returned from measuring a location's contents. */
 export type PrefixUsageResult =
-  | { ok: true; usage: PrefixUsage }
-  | { ok: false; message: string };
+  { ok: true; usage: PrefixUsage } | { ok: false; message: string };
+
+/** Result of reading the server-side capacity index. */
+export type CapacityViewResult =
+  { ok: true; view: CapacityViewDto } | { ok: false; message: string };
+
+/** Result of asking the server-side capacity index to refresh. */
+export type CapacityScanResult =
+  { ok: true; queued: number } | { ok: false; message: string };
 
 /** Result of scanning a single bucket's usage. */
 export type ScanBucketResult =
@@ -71,8 +76,7 @@ export type ScanBucketResult =
 
 /** Discriminated result of a cleanup scan. */
 export type ScanCleanupResult =
-  | { ok: true; plan: CleanupPlan }
-  | { ok: false; message: string };
+  { ok: true; plan: CleanupPlan } | { ok: false; message: string };
 
 /** Discriminated result of a cleanup deletion. */
 export type DeleteCleanupResult =
@@ -105,12 +109,31 @@ export async function getSession(): Promise<SessionDto> {
   return request<SessionDto>("/session");
 }
 
-/** Reads a connection candidate from the submitted form. */
-function readConnectionForm(formData: FormData): Record<string, unknown> {
-  return {
-    endpoint: String(formData.get("endpoint") ?? ""),
+/**
+ * Reads a connection candidate from the submitted form.
+ *
+ * A locked deployment renders none of the target fields, and an absent
+ * checkbox is indistinguishable from an unchecked one in `FormData`. Reading
+ * them anyway would submit `false` for settings the operator pinned to `true`,
+ * which the server correctly rejects — so the target is omitted entirely and
+ * the server fills it in.
+ */
+function readConnectionForm(
+  formData: FormData,
+  connection: ConnectionDefaultsDto,
+): Record<string, unknown> {
+  const credentials = {
     accessKeyId: String(formData.get("accessKeyId") ?? ""),
     secretAccessKey: String(formData.get("secretAccessKey") ?? ""),
+  };
+
+  if (connection.locked) {
+    return credentials;
+  }
+
+  return {
+    ...credentials,
+    endpoint: String(formData.get("endpoint") ?? ""),
     region: String(formData.get("region") ?? "") || undefined,
     forcePathStyle: formData.get("forcePathStyle") === "on",
     skipTlsVerification: formData.get("skipTlsVerification") === "on",
@@ -138,13 +161,14 @@ function toConnectState(error: unknown): ConnectState {
  * Action's `redirect` did.
  */
 export async function connectAction(
+  connection: ConnectionDefaultsDto,
   _prev: ConnectState,
   formData: FormData,
 ): Promise<ConnectState> {
   try {
     await request<void>("/session", {
       method: "POST",
-      body: readConnectionForm(formData),
+      body: readConnectionForm(formData, connection),
     });
   } catch (error) {
     return toConnectState(error);
@@ -155,13 +179,14 @@ export async function connectAction(
 
 /** Validates the candidate connection without persisting it. */
 export async function testConnectionAction(
+  connection: ConnectionDefaultsDto,
   _prev: ConnectState,
   formData: FormData,
 ): Promise<ConnectState> {
   try {
     await request<void>("/session/test", {
       method: "POST",
-      body: readConnectionForm(formData),
+      body: readConnectionForm(formData, connection),
     });
   } catch (error) {
     return toConnectState(error);
@@ -201,11 +226,19 @@ export async function loadObjectsAction(input: {
   try {
     const page = await request<ObjectListPageDto>(
       `/buckets/${encodeBucket(input.bucket)}/objects`,
-      { query: { prefix: input.prefix, continuationToken: input.continuationToken } },
+      {
+        query: {
+          prefix: input.prefix,
+          continuationToken: input.continuationToken,
+        },
+      },
     );
     return { ok: true, page: reviveObjectListPage(page) };
   } catch (error) {
-    return { ok: false, message: messageFor(error, "Failed to load next page") };
+    return {
+      ok: false,
+      message: messageFor(error, "Failed to load next page"),
+    };
   }
 }
 
@@ -300,7 +333,10 @@ export async function downloadUrlAction(input: {
     );
     return { ok: true, url, expiresAt: expiresAtFrom(input.expiresIn) };
   } catch (error) {
-    return { ok: false, message: messageFor(error, "Failed to prepare download") };
+    return {
+      ok: false,
+      message: messageFor(error, "Failed to prepare download"),
+    };
   }
 }
 
@@ -328,6 +364,57 @@ export async function scanBucketAction(
   }
 }
 
+/**
+ * Reads the server-side capacity index.
+ *
+ * Cheap and side-effect-light by design: the server answers from memory and
+ * only queues a refresh behind the response, so a caller polling this while
+ * figures are stale is not asking the backend to be walked again each time.
+ *
+ * Omit the bucket to read every bucket the session can see.
+ */
+export async function fetchCapacityAction(input?: {
+  bucket?: string;
+  prefix?: string;
+}): Promise<CapacityViewResult> {
+  try {
+    const view = await request<CapacityViewDto>("/capacity", {
+      query: { bucket: input?.bucket, prefix: input?.prefix },
+    });
+    return { ok: true, view };
+  } catch (error) {
+    return {
+      ok: false,
+      message: messageFor(error, "Failed to read stored usage"),
+    };
+  }
+}
+
+/**
+ * Asks the server-side index to re-measure a location, or every visible bucket.
+ *
+ * Returns as soon as the work is queued rather than when it finishes, because
+ * on a large backend a walk outlasts any sensible request. Callers watch the
+ * figures change instead.
+ */
+export async function requestCapacityScanAction(input?: {
+  bucket?: string;
+  prefix?: string;
+}): Promise<CapacityScanResult> {
+  try {
+    const { queued } = await request<CapacityScanAcceptedDto>(
+      "/capacity/scan",
+      {
+        method: "POST",
+        body: { bucket: input?.bucket, prefix: input?.prefix },
+      },
+    );
+    return { ok: true, queued };
+  } catch (error) {
+    return { ok: false, message: messageFor(error, "Failed to start a scan") };
+  }
+}
+
 /** Scans the requested scope and returns a ranked cleanup plan. */
 export async function scanCleanupAction(
   input: ScanCleanupInput,
@@ -347,7 +434,10 @@ export async function scanCleanupAction(
       },
     };
   } catch (error) {
-    return { ok: false, message: messageFor(error, "Failed to scan for cleanup") };
+    return {
+      ok: false,
+      message: messageFor(error, "Failed to scan for cleanup"),
+    };
   }
 }
 

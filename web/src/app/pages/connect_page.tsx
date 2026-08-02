@@ -40,13 +40,15 @@ export function ConnectPage() {
               Connect to storage
             </Heading>
             <Text color="fg.muted" fontSize="sm" mt="1">
-              Enter your S3-compatible endpoint and credentials. Credentials are
-              sealed in an http-only cookie that only the server can decrypt,
-              and are never readable by scripts in your browser.
+              {session?.connection.locked
+                ? "Enter your credentials for the endpoint below."
+                : "Enter your S3-compatible endpoint and credentials."}{" "}
+              Credentials are sealed in an http-only cookie that only the server
+              can decrypt, and are never readable by scripts in your browser.
             </Text>
           </CardHeader>
           <CardContent>
-            <ConnectForm defaultEndpoint={session?.defaultEndpoint ?? ""} />
+            {session ? <ConnectForm connection={session.connection} /> : null}
           </CardContent>
         </Card>
         <HStack color="fg.muted" fontSize="xs" justify="center" gap="1.5">

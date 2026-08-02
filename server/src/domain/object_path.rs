@@ -40,6 +40,43 @@ pub fn child_of_prefix(key: &str, prefix: &str) -> Option<PrefixChild> {
     }
 }
 
+/// Returns the deepest folder prefix that contains every one of `keys`.
+///
+/// This is what turns a batch of changed keys into one location to re-measure:
+/// walking their common folder costs a fraction of walking the bucket, and it
+/// is guaranteed to cover every one of them.
+///
+/// The result always ends at a delimiter, so a shared filename stem never makes
+/// two unrelated folders look like one prefix. An empty result means the bucket
+/// root, which is the whole bucket.
+#[must_use]
+pub fn common_folder_prefix<'a>(keys: impl IntoIterator<Item = &'a str>) -> String {
+    let mut keys = keys.into_iter();
+    let Some(first) = keys.next() else {
+        return String::new();
+    };
+
+    let mut shared: Vec<char> = first.chars().collect();
+    for key in keys {
+        let matching = shared
+            .iter()
+            .zip(key.chars())
+            .take_while(|(left, right)| **left == *right)
+            .count();
+        shared.truncate(matching);
+        if shared.is_empty() {
+            return String::new();
+        }
+    }
+
+    // Cutting at the last delimiter is what keeps `a/foo.txt` and `a/fob.txt`
+    // from yielding `a/fo`, which names no folder and would list nothing.
+    match shared.iter().rposition(|character| *character == '/') {
+        Some(boundary) => shared[..=boundary].iter().collect(),
+        None => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,5 +116,50 @@ mod tests {
         let child = child_of_prefix("圖片/貓 咪.jpg", "圖片/").unwrap();
         assert_eq!(child.name, "貓 咪.jpg");
         assert!(!child.is_prefix);
+    }
+
+    #[test]
+    fn keys_in_one_folder_share_that_folder() {
+        assert_eq!(
+            common_folder_prefix(["a/b/c.jpg", "a/b/d.jpg"]),
+            "a/b/",
+            "a batch confined to one folder must not cost a bucket walk"
+        );
+    }
+
+    #[test]
+    fn keys_in_sibling_folders_share_their_parent() {
+        assert_eq!(common_folder_prefix(["a/b/c.jpg", "a/x/d.jpg"]), "a/");
+    }
+
+    #[test]
+    fn keys_with_nothing_in_common_reach_the_bucket_root() {
+        assert_eq!(common_folder_prefix(["photos/a.jpg", "videos/b.mp4"]), "");
+        assert_eq!(common_folder_prefix(["a.jpg", "b.jpg"]), "");
+    }
+
+    #[test]
+    fn a_lone_key_yields_the_folder_holding_it() {
+        assert_eq!(common_folder_prefix(["a/b/c.jpg"]), "a/b/");
+        assert_eq!(common_folder_prefix(["c.jpg"]), "");
+    }
+
+    #[test]
+    fn a_shared_filename_stem_does_not_invent_a_folder() {
+        // `a/fo` names nothing and would list no objects at all.
+        assert_eq!(common_folder_prefix(["a/foo.txt", "a/fob.txt"]), "a/");
+    }
+
+    #[test]
+    fn nothing_at_all_reaches_the_bucket_root() {
+        assert_eq!(common_folder_prefix(std::iter::empty()), "");
+    }
+
+    #[test]
+    fn a_multibyte_key_is_split_on_characters_rather_than_bytes() {
+        assert_eq!(
+            common_folder_prefix(["圖片/貓.jpg", "圖片/狗.jpg"]),
+            "圖片/"
+        );
     }
 }

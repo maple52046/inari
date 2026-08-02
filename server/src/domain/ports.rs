@@ -3,8 +3,11 @@
 //! Implementations live in the adapter layer and are injected at the
 //! composition root. Nothing here may name a concrete SDK or runtime.
 
+use std::time::SystemTime;
+
 use async_trait::async_trait;
 
+use super::capacity::{CapacityIndexStats, CapacityMeasurement, CapacityScope, CapacitySnapshot};
 use super::errors::StorageError;
 use super::models::{BucketSummary, DeleteResult, ObjectListPage, S3Connection};
 
@@ -114,6 +117,67 @@ pub trait ObjectStorage: Send + Sync {
         key: &str,
         expires_in: u64,
     ) -> Result<String, StorageError>;
+}
+
+/// Paces the scanner so its load on the backend stays bounded.
+///
+/// Expressed as a port rather than a sleep inside the walk because the walk is
+/// application policy and the timer is a runtime detail; it also lets a test
+/// exercise a multi-page scan without waiting.
+#[async_trait]
+pub trait ScanPacer: Send + Sync {
+    /// Waits until another listing request may be issued.
+    async fn acquire(&self);
+}
+
+/// Reads the wall clock.
+///
+/// Defined inward so anything time-dependent, staleness above all, can be
+/// exercised without waiting for real time to pass.
+pub trait Clock: Send + Sync + std::fmt::Debug {
+    /// Returns the current instant.
+    fn now(&self) -> SystemTime;
+}
+
+/// The server-side capacity index shared by every session.
+///
+/// Deliberately synchronous. The index is in-process state, and a synchronous
+/// contract is what keeps an async runtime out of the use cases that maintain
+/// it; an implementation needing I/O owns a worker of its own rather than
+/// making every caller await.
+pub trait CapacityIndex: Send + Sync {
+    /// Whether this deployment maintains an index at all.
+    ///
+    /// Callers branch on this instead of on configuration, so the decision
+    /// stays at the composition root.
+    fn is_enabled(&self) -> bool;
+
+    /// Starts a measurement of `scope` under the index's current ceilings.
+    ///
+    /// The ceilings come from the index rather than from configuration because
+    /// a tree that has already shed a level of detail must not have it rebuilt
+    /// by the next scan.
+    fn begin_measurement(&self, scope: CapacityScope) -> CapacityMeasurement;
+
+    /// Installs a completed measurement, correcting the ancestors it affects.
+    fn apply(&self, measurement: CapacityMeasurement);
+
+    /// Records locations whose stored figures a change has invalidated.
+    ///
+    /// Record-only by contract: it appends and returns, performing no I/O,
+    /// awaiting nothing, and spawning nothing. That is what lets the mutation
+    /// use cases take this port without an async runtime reaching them, and it
+    /// is what keeps a delete from waiting on the re-measurement it triggers.
+    fn mark_dirty(&self, scopes: &[CapacityScope]);
+
+    /// Reports what the index holds for one location.
+    ///
+    /// A location the index has never walked comes back as unmeasured rather
+    /// than as zero, so a caller cannot present "not known yet" as "empty".
+    fn read(&self, scope: &CapacityScope) -> CapacitySnapshot;
+
+    /// Reports what the index currently costs, for tuning its ceilings.
+    fn stats(&self) -> CapacityIndexStats;
 }
 
 /// Builds a storage port for a candidate connection.

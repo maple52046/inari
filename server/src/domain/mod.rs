@@ -4,6 +4,7 @@
 //! SDK. Data crossing a boundary is expressed with these types, never with
 //! driver-shaped values.
 
+pub mod capacity;
 pub mod cleanup;
 pub mod errors;
 pub mod models;

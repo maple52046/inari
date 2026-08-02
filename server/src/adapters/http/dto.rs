@@ -13,6 +13,8 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use ts_rs::TS;
 
+use crate::infrastructure::config::ConnectionDefaults;
+
 use crate::domain::models::{
     BucketSummary, CommonPrefix, DeleteResult, KeyFailure, MoveResult, MovedObject, ObjectListPage,
     ObjectSummary, S3Connection, UsageScope,
@@ -300,8 +302,46 @@ pub struct SessionDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub last_used_at: Option<String>,
-    /// Endpoint the connection form prefills.
-    pub default_endpoint: String,
+    /// The storage target the connection form starts from, or is pinned to.
+    pub connection: ConnectionDefaultsDto,
+    /// Whether this deployment maintains a shared capacity index.
+    ///
+    /// Carried on the session because the client already fetches it on every
+    /// page load, so a deployment with the index off pays no extra request to
+    /// discover that its per-tab cache is still the only source of figures.
+    pub capacity_index: bool,
+}
+
+/// What the connection form should offer, and whether it may be changed.
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = BINDINGS)]
+pub struct ConnectionDefaultsDto {
+    /// Base URL of the endpoint.
+    pub endpoint: String,
+    /// Signing region.
+    pub region: String,
+    /// Path-style addressing.
+    pub force_path_style: bool,
+    /// Whether TLS certificate verification is skipped.
+    pub skip_tls_verification: bool,
+    /// Whether the values above are the only ones accepted.
+    ///
+    /// The form collapses to credentials alone when this is set. That is
+    /// presentation only: the server refuses a different target either way.
+    pub locked: bool,
+}
+
+impl From<&ConnectionDefaults> for ConnectionDefaultsDto {
+    fn from(defaults: &ConnectionDefaults) -> Self {
+        Self {
+            endpoint: defaults.endpoint.clone(),
+            region: defaults.region.clone(),
+            force_path_style: defaults.force_path_style,
+            skip_tls_verification: defaults.skip_tls_verification,
+            locked: defaults.locked,
+        }
+    }
 }
 
 /// A candidate connection submitted by the connection form.
@@ -310,6 +350,11 @@ pub struct SessionDto {
 #[ts(export, export_to = BINDINGS)]
 pub struct ConnectionRequest {
     /// Base URL of the endpoint.
+    ///
+    /// Optional because a deployment that pins the endpoint hides the field, so
+    /// the form submits nothing for it. Absent still fails validation when the
+    /// endpoint is not pinned.
+    #[serde(default)]
     pub endpoint: String,
     /// Access key identifier.
     pub access_key_id: String,
@@ -344,26 +389,100 @@ pub fn mask_key_id(value: &str) -> String {
     format!("{visible}{}", "\u{2022}".repeat(hidden))
 }
 
-/// Region assumed when the form leaves it blank, matching the Zod schema.
-const DEFAULT_REGION: &str = "us-east-1";
+/// Rejects a submitted value that contradicts a pinned one.
+///
+/// Absent is the normal case once the form hides the field. An explicit value
+/// that matches is accepted too, so a client that echoes back what it was told
+/// still works.
+fn pinned<T: PartialEq>(
+    submitted: Option<T>,
+    pinned: T,
+    field: &str,
+    errors: &mut Vec<(String, String)>,
+) -> T {
+    match submitted {
+        Some(value) if value != pinned => {
+            errors.push((
+                field.to_owned(),
+                "This deployment fixes the connection target, which cannot be changed".to_owned(),
+            ));
+            pinned
+        }
+        _ => pinned,
+    }
+}
 
 impl ConnectionRequest {
     /// Validates the candidate and converts it into a domain connection.
+    ///
+    /// `locked_endpoint` pins the target when the deployment serves a single
+    /// backend, so the user supplies only credentials.
+    ///
+    /// Enforced here rather than by hiding the form fields, because hidden
+    /// fields stop nobody: without a server-side check the target is still
+    /// whatever the request body says, and the service remains able to issue
+    /// requests anywhere it can reach on the operator's behalf.
     ///
     /// # Errors
     ///
     /// Returns one message per offending field, keyed by the field name the form
     /// uses, so the existing form can render them where it always has.
-    pub fn validate(self) -> Result<S3Connection, Vec<(String, String)>> {
+    pub fn validate(
+        self,
+        defaults: &ConnectionDefaults,
+    ) -> Result<S3Connection, Vec<(String, String)>> {
         let mut errors = Vec::new();
 
-        let endpoint = self.endpoint.trim().to_owned();
-        if url::Url::parse(&endpoint).is_err() {
-            errors.push((
-                "endpoint".to_owned(),
-                "Enter a valid URL, e.g. https://host".to_owned(),
-            ));
-        }
+        let submitted_endpoint = self.endpoint.trim();
+        let submitted_region = self
+            .region
+            .map(|region| region.trim().to_owned())
+            .filter(|region| !region.is_empty());
+
+        let (endpoint, region, force_path_style, skip_tls_verification) = if defaults.locked {
+            (
+                pinned(
+                    Some(submitted_endpoint)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_owned),
+                    defaults.endpoint.clone(),
+                    "endpoint",
+                    &mut errors,
+                ),
+                pinned(
+                    submitted_region,
+                    defaults.region.clone(),
+                    "region",
+                    &mut errors,
+                ),
+                pinned(
+                    self.force_path_style,
+                    defaults.force_path_style,
+                    "forcePathStyle",
+                    &mut errors,
+                ),
+                pinned(
+                    self.skip_tls_verification,
+                    defaults.skip_tls_verification,
+                    "skipTlsVerification",
+                    &mut errors,
+                ),
+            )
+        } else {
+            if url::Url::parse(submitted_endpoint).is_err() {
+                errors.push((
+                    "endpoint".to_owned(),
+                    "Enter a valid URL, e.g. https://host".to_owned(),
+                ));
+            }
+            (
+                submitted_endpoint.to_owned(),
+                submitted_region.unwrap_or_else(|| defaults.region.clone()),
+                self.force_path_style.unwrap_or(defaults.force_path_style),
+                self.skip_tls_verification
+                    .unwrap_or(defaults.skip_tls_verification),
+            )
+        };
 
         let access_key_id = self.access_key_id.trim().to_owned();
         if access_key_id.is_empty() {
@@ -387,19 +506,13 @@ impl ConnectionRequest {
             return Err(errors);
         }
 
-        let region = self
-            .region
-            .map(|region| region.trim().to_owned())
-            .filter(|region| !region.is_empty())
-            .unwrap_or_else(|| DEFAULT_REGION.to_owned());
-
         Ok(S3Connection {
             endpoint,
             access_key_id,
             secret_access_key: self.secret_access_key,
             region,
-            force_path_style: self.force_path_style.unwrap_or(true),
-            skip_tls_verification: self.skip_tls_verification.unwrap_or(false),
+            force_path_style,
+            skip_tls_verification,
         })
     }
 }
@@ -419,9 +532,156 @@ mod tests {
         }
     }
 
+    const LOCKED: &str = "https://minio.internal";
+
+    fn flexible() -> ConnectionDefaults {
+        ConnectionDefaults {
+            endpoint: "https://s3.example.com".to_owned(),
+            region: "us-east-1".to_owned(),
+            force_path_style: true,
+            skip_tls_verification: false,
+            locked: false,
+        }
+    }
+
+    fn pinned_to_minio() -> ConnectionDefaults {
+        ConnectionDefaults {
+            endpoint: LOCKED.to_owned(),
+            region: "eu-west-2".to_owned(),
+            force_path_style: true,
+            skip_tls_verification: false,
+            locked: true,
+        }
+    }
+
+    #[test]
+    fn a_locked_deployment_supplies_the_whole_target() {
+        let connection = ConnectionRequest {
+            endpoint: String::new(),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap();
+
+        assert_eq!(connection.endpoint, LOCKED);
+        assert_eq!(connection.region, "eu-west-2");
+        assert!(connection.force_path_style);
+        assert!(!connection.skip_tls_verification);
+    }
+
+    #[test]
+    fn a_locked_deployment_refuses_a_substituted_region() {
+        let errors = ConnectionRequest {
+            endpoint: String::new(),
+            region: Some("elsewhere".to_owned()),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap_err();
+        assert_eq!(errors[0].0, "region");
+    }
+
+    #[test]
+    fn a_locked_deployment_refuses_disabling_tls_verification() {
+        // The operator decided verification is on. A crafted request must not
+        // be able to turn it off for its own session.
+        let errors = ConnectionRequest {
+            endpoint: String::new(),
+            skip_tls_verification: Some(true),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap_err();
+        assert_eq!(errors[0].0, "skipTlsVerification");
+    }
+
+    #[test]
+    fn a_locked_deployment_refuses_a_substituted_addressing_style() {
+        let errors = ConnectionRequest {
+            endpoint: String::new(),
+            force_path_style: Some(false),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap_err();
+        assert_eq!(errors[0].0, "forcePathStyle");
+    }
+
+    #[test]
+    fn an_unlocked_deployment_takes_the_operator_values_as_mere_defaults() {
+        let defaults = ConnectionDefaults {
+            region: "ap-northeast-1".to_owned(),
+            force_path_style: false,
+            ..flexible()
+        };
+
+        let untouched = request().validate(&defaults).unwrap();
+        assert_eq!(untouched.region, "ap-northeast-1");
+        assert!(!untouched.force_path_style);
+
+        let overridden = ConnectionRequest {
+            region: Some("us-west-1".to_owned()),
+            force_path_style: Some(true),
+            ..request()
+        }
+        .validate(&defaults)
+        .unwrap();
+        assert_eq!(overridden.region, "us-west-1");
+        assert!(overridden.force_path_style);
+    }
+
+    #[test]
+    fn a_locked_deployment_ignores_an_omitted_endpoint() {
+        let connection = ConnectionRequest {
+            endpoint: String::new(),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap();
+        assert_eq!(connection.endpoint, LOCKED);
+    }
+
+    #[test]
+    fn a_locked_deployment_accepts_its_own_endpoint_echoed_back() {
+        let connection = ConnectionRequest {
+            endpoint: LOCKED.to_owned(),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap();
+        assert_eq!(connection.endpoint, LOCKED);
+    }
+
+    #[test]
+    fn a_locked_deployment_refuses_a_substituted_endpoint() {
+        // The form hides the field, so this is what a crafted request looks
+        // like. Rejecting it server-side is the whole point of the setting: a
+        // hidden input would not stop anyone.
+        let errors = ConnectionRequest {
+            endpoint: "http://169.254.169.254/".to_owned(),
+            ..request()
+        }
+        .validate(&pinned_to_minio())
+        .unwrap_err();
+
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].0, "endpoint");
+    }
+
+    #[test]
+    fn an_unlocked_deployment_still_takes_any_valid_endpoint() {
+        let connection = ConnectionRequest {
+            endpoint: "https://other.example.com".to_owned(),
+            ..request()
+        }
+        .validate(&flexible())
+        .unwrap();
+        assert_eq!(connection.endpoint, "https://other.example.com");
+    }
+
     #[test]
     fn defaults_match_the_zod_schema() {
-        let connection = request().validate().unwrap();
+        let connection = request().validate(&flexible()).unwrap();
         assert_eq!(connection.region, "us-east-1");
         assert!(connection.force_path_style);
         assert!(!connection.skip_tls_verification);
@@ -429,7 +689,7 @@ mod tests {
 
     #[test]
     fn endpoint_and_key_id_are_trimmed() {
-        let connection = request().validate().unwrap();
+        let connection = request().validate(&flexible()).unwrap();
         assert_eq!(connection.endpoint, "https://minio.example.com");
         assert_eq!(connection.access_key_id, "AKIAEXAMPLE");
     }
@@ -440,7 +700,7 @@ mod tests {
             secret_access_key: "  padded  ".to_owned(),
             ..request()
         }
-        .validate()
+        .validate(&flexible())
         .unwrap();
         assert_eq!(connection.secret_access_key, "  padded  ");
     }
@@ -451,7 +711,7 @@ mod tests {
             endpoint: "not a url".to_owned(),
             ..request()
         }
-        .validate()
+        .validate(&flexible())
         .unwrap_err();
         assert_eq!(errors[0].0, "endpoint");
     }
@@ -464,7 +724,7 @@ mod tests {
             secret_access_key: String::new(),
             ..request()
         }
-        .validate()
+        .validate(&flexible())
         .unwrap_err();
 
         let fields: Vec<_> = errors.iter().map(|(field, _)| field.as_str()).collect();
@@ -491,7 +751,7 @@ mod tests {
             region: Some("   ".to_owned()),
             ..request()
         }
-        .validate()
+        .validate(&flexible())
         .unwrap();
         assert_eq!(connection.region, "us-east-1");
     }

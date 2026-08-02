@@ -30,8 +30,9 @@ import { formatSize } from "@/lib/format_size";
 import { formatDateTime } from "@/lib/date";
 import { writeUsageCache } from "@/lib/usage_cache";
 import type { UsageCacheStamp } from "@/lib/usage_cache";
+import { refreshCapacity } from "@/lib/capacity_store";
 import { useCachedUsage } from "./use_cached_usage";
-import { scanBucketAction } from "@/api/actions";
+import { requestCapacityScanAction, scanBucketAction } from "@/api/actions";
 
 interface ScanFailure {
   bucket: string;
@@ -44,11 +45,13 @@ interface ScanProgress {
 }
 
 /**
- * Manual, scan-based usage estimator with per-bucket progress.
+ * Scan-based usage estimator with per-bucket progress.
  *
- * Scanning is only ever started by a button. It walks every object in a bucket,
- * so triggering it from an effect would make merely opening the page an expensive
- * operation.
+ * Serves both shapes the deployment can take. Where the server keeps a shared
+ * index the figures are already there on arrival and the button only asks for
+ * them to be re-measured; where it does not, nothing is shown until a scan is
+ * pressed, because a scan walks every object and merely opening the page must
+ * not start one.
  */
 export function UsagePanel({
   availableBuckets,
@@ -61,22 +64,50 @@ export function UsagePanel({
   const [failures, setFailures] = useState<ScanFailure[]>([]);
   const [progress, setProgress] = useState<ScanProgress | undefined>();
   const [liveScannedAt, setLiveScannedAt] = useState<Date | undefined>();
-  const scanning = progress !== undefined && progress.done < progress.total;
+  const [requesting, setRequesting] = useState(false);
 
-  const cached = useCachedUsage(cacheStamp);
+  const usage = useCachedUsage(cacheStamp);
 
-  // A scan on this mount supersedes the cache, which only seeds a fresh mount.
-  // `progress` becoming defined is what marks the handover.
-  const usingLiveScan = progress !== undefined;
-  const scopes = usingLiveScan ? liveScopes : (cached?.scopes ?? []);
-  const scannedAt = usingLiveScan ? liveScannedAt : cached?.scannedAt;
+  // A scan on this mount supersedes the per-tab cache, which only seeds a fresh
+  // mount. `progress` becoming defined is what marks the handover. A shared
+  // index needs none of this: the server has already stored the results.
+  const usingLiveScan = !usage.shared && progress !== undefined;
+  const scopes = usingLiveScan ? liveScopes : usage.scopes;
+  const scannedAt = usingLiveScan ? liveScannedAt : usage.scannedAt;
 
-  async function scan(buckets: string[]): Promise<void> {
+  const scanning = usage.shared
+    ? usage.scanning || requesting
+    : progress !== undefined && progress.done < progress.total;
+  // The server reports that a scan is running, not how far along it is, so the
+  // count of buckets already measured stands in for progress.
+  const shownProgress = usage.shared
+    ? scanning
+      ? { done: usage.scopes.length, total: availableBuckets.length }
+      : undefined
+    : progress;
+
+  async function scanEverything(): Promise<void> {
+    setFailures([]);
+    if (usage.shared) {
+      setRequesting(true);
+      const result = await requestCapacityScanAction();
+      if (!result.ok) {
+        setFailures([{ bucket: "all buckets", message: result.message }]);
+      }
+      // Reading straight back turns the queued work into a visible "scanning"
+      // state, and starts the polling that carries the results in.
+      await refreshCapacity();
+      setRequesting(false);
+      return;
+    }
+    await scanLocally(availableBuckets);
+  }
+
+  async function scanLocally(buckets: string[]): Promise<void> {
     if (buckets.length === 0) {
       return;
     }
     setLiveScopes([]);
-    setFailures([]);
     setProgress({ done: 0, total: buckets.length });
     const collected: UsageScope[] = [];
     const failed: ScanFailure[] = [];
@@ -111,25 +142,31 @@ export function UsagePanel({
   // A pie of nothing but zero-byte buckets has no slices, so the column would
   // otherwise reserve space for an empty card.
   const hasChart = scopes.some((scope) => scope.totalSize > 0);
+  // A bucket the index has not reached yet is absent from the figures rather
+  // than showing as empty, so the gap is named instead of being invisible.
+  const unmeasured = usage.shared
+    ? availableBuckets.length - usage.scopes.length
+    : 0;
 
   return (
     <Stack gap="4">
       <Wrap gap="2">
         <Button
-          onClick={() => scan(availableBuckets)}
+          onClick={() => scanEverything()}
           disabled={scanning || availableBuckets.length === 0}
         >
           <Icon size="sm" asChild>
             <HardDrive />
           </Icon>
-          Scan all buckets ({availableBuckets.length})
+          {usage.shared ? "Rescan" : "Scan"} all buckets (
+          {availableBuckets.length})
         </Button>
       </Wrap>
 
-      {progress ? (
+      {shownProgress ? (
         <Progress.Root
-          value={progress.done}
-          max={progress.total}
+          value={shownProgress.done}
+          max={shownProgress.total}
           size="xs"
           striped={scanning}
           animated={scanning}
@@ -137,8 +174,8 @@ export function UsagePanel({
           <HStack color="fg.muted" fontSize="sm" gap="2" mb="1">
             {scanning ? <Spinner size="xs" /> : null}
             <Progress.Label>
-              Scanned {progress.done} of {progress.total} bucket
-              {progress.total === 1 ? "" : "s"}
+              Scanned {shownProgress.done} of {shownProgress.total} bucket
+              {shownProgress.total === 1 ? "" : "s"}
             </Progress.Label>
           </HStack>
           <Progress.Track>
@@ -193,7 +230,11 @@ export function UsagePanel({
                     <Table.Cell textAlign="end">
                       {scope.objectCount.toLocaleString()}
                     </Table.Cell>
-                    <Table.Cell>{formatDateTime(scannedAt)}</Table.Cell>
+                    <Table.Cell>
+                      {formatDateTime(
+                        usage.scannedAtByScope.get(scope.scope) ?? scannedAt,
+                      )}
+                    </Table.Cell>
                   </Table.Row>
                 ))}
               </Table.Body>
@@ -211,6 +252,13 @@ export function UsagePanel({
             </Card>
           ) : null}
         </Grid>
+      ) : null}
+
+      {unmeasured > 0 && !scanning ? (
+        <Alert variant="info">
+          {unmeasured} bucket{unmeasured === 1 ? " has" : "s have"} not been
+          measured yet.
+        </Alert>
       ) : null}
 
       {failures.length > 0 ? (

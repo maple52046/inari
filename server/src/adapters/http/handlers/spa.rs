@@ -59,7 +59,7 @@ fn index(state: &AppState) -> Response {
             // pin a browser to a previous release's JavaScript.
             (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
         ],
-        spa.index_html().to_owned(),
+        spa.index_html().into_owned(),
     )
         .into_response()
 }

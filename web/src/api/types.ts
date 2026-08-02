@@ -27,6 +27,120 @@ scope: UsageScopeDto,
 scannedAt?: string, };
 
 /**
+ * One row of a capacity view: a bucket, or a sub-prefix of one location.
+ */
+export type CapacityEntryDto = { 
+/**
+ * Name to show: the bucket, or the child prefix with its delimiter.
+ */
+name: string, 
+/**
+ * Bucket this row lives in.
+ */
+bucket: string, 
+/**
+ * Prefix within the bucket; empty when the row is a whole bucket.
+ */
+prefix: string, 
+/**
+ * Combined size beneath the row.
+ */
+totalSize: number, 
+/**
+ * Objects beneath the row.
+ */
+objectCount: number, 
+/**
+ * Whether this row has ever been walked in full.
+ *
+ * A row can be unmeasured while carrying a non-zero size, because a scan
+ * below it propagates upwards. The figure is then a lower bound, so the UI
+ * must not present it as a measurement.
+ */
+measured: boolean, 
+/**
+ * When the row was last walked in full, as RFC 3339.
+ */
+scannedAt?: string, 
+/**
+ * Whether the row's figures should be refreshed; always true if unmeasured.
+ */
+stale: boolean, };
+
+/**
+ * How much work a manual refresh asked for.
+ */
+export type CapacityScanAcceptedDto = { 
+/**
+ * Locations now queued or already being scanned.
+ */
+queued: number, };
+
+/**
+ * What a manual refresh should cover; absent means every visible bucket.
+ */
+export type CapacityScanRequest = { 
+/**
+ * Restrict to one bucket; omit to refresh everything the caller can see.
+ */
+bucket?: string, 
+/**
+ * Restrict to a prefix within that bucket.
+ */
+prefix?: string, };
+
+/**
+ * What the index reports for one location, or for every visible bucket.
+ */
+export type CapacityViewDto = { 
+/**
+ * Whether this deployment maintains a shared index at all.
+ *
+ * The client branches on this rather than on its own copy of the
+ * configuration, and falls back to its per-tab cache when it is false.
+ */
+enabled: boolean, 
+/**
+ * Human label of the location described; empty across all buckets.
+ */
+scope: string, 
+/**
+ * Combined size across the view.
+ */
+totalSize: number, 
+/**
+ * Objects across the view.
+ */
+objectCount: number, 
+/**
+ * Whether every part of the view has been walked at least once.
+ */
+measured: boolean, 
+/**
+ * When the view was last measured in full, as RFC 3339.
+ */
+scannedAt?: string, 
+/**
+ * Whether the figures should be refreshed; always true while unmeasured.
+ */
+stale: boolean, 
+/**
+ * Whether [`CapacityViewDto::entries`] lists every sub-prefix.
+ *
+ * False means the location was measured but the node ceiling stopped it
+ * being broken down further: the total is exact, the breakdown is absent.
+ */
+subdivided: boolean, 
+/**
+ * Whether a scan covering this view is queued or running.
+ */
+scanning: boolean, 
+/**
+ * The rows making up the view, largest first.
+ */
+entries: Array<CapacityEntryDto>, };
+
+/**
  * Per-bucket outcome of a cleanup deletion.
  */
 export type CleanupBucketDeleteResultDto = { 
@@ -179,11 +293,43 @@ prefix: string,
 name: string, };
 
 /**
+ * What the connection form should offer, and whether it may be changed.
+ */
+export type ConnectionDefaultsDto = { 
+/**
+ * Base URL of the endpoint.
+ */
+endpoint: string, 
+/**
+ * Signing region.
+ */
+region: string, 
+/**
+ * Path-style addressing.
+ */
+forcePathStyle: boolean, 
+/**
+ * Whether TLS certificate verification is skipped.
+ */
+skipTlsVerification: boolean, 
+/**
+ * Whether the values above are the only ones accepted.
+ *
+ * The form collapses to credentials alone when this is set. That is
+ * presentation only: the server refuses a different target either way.
+ */
+locked: boolean, };
+
+/**
  * A candidate connection submitted by the connection form.
  */
 export type ConnectionRequest = { 
 /**
  * Base URL of the endpoint.
+ *
+ * Optional because a deployment that pins the endpoint hides the field, so
+ * the form submits nothing for it. Absent still fails validation when the
+ * endpoint is not pinned.
  */
 endpoint: string, 
 /**
@@ -481,9 +627,17 @@ createdAt?: string,
  */
 lastUsedAt?: string, 
 /**
- * Endpoint the connection form prefills.
+ * The storage target the connection form starts from, or is pinned to.
  */
-defaultEndpoint: string, };
+connection: ConnectionDefaultsDto, 
+/**
+ * Whether this deployment maintains a shared capacity index.
+ *
+ * Carried on the session because the client already fetches it on every
+ * page load, so a deployment with the index off pays no extra request to
+ * discover that its per-tab cache is still the only source of figures.
+ */
+capacityIndex: boolean, };
 
 /**
  * Measured usage for one scope.

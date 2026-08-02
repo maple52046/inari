@@ -1,6 +1,6 @@
 //! Object listing, mutation, and download-URL endpoints.
 
-use axum::extract::{Path, Query};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -71,10 +71,17 @@ pub struct DeleteObjectsRequest {
 /// Deletes the given keys from one bucket.
 async fn delete(
     session: ActiveSession,
+    State(state): State<AppState>,
     Path(bucket): Path<String>,
     Json(request): Json<DeleteObjectsRequest>,
 ) -> Result<Json<DeleteResultDto>, ApiError> {
-    let result = delete_objects(session.storage.as_ref(), &bucket, &request.keys).await?;
+    let result = delete_objects(
+        session.storage.as_ref(),
+        state.capacity_index(),
+        &bucket,
+        &request.keys,
+    )
+    .await?;
     Ok(Json(result.into()))
 }
 
@@ -116,11 +123,16 @@ async fn presign(
     Ok(Json(PresignedUrlDto { url }))
 }
 
-/// Measures one whole bucket.
+/// Measures one whole bucket with the caller's own credentials.
 ///
 /// One bucket per request, matching how the usage panel drives its progress
 /// display: the client walks the bucket list and reports each result as it
 /// lands, rather than waiting on a single long call.
+///
+/// This is the path a deployment without a shared index uses. With one, the
+/// client asks the index to refresh instead, because a figure everyone reads
+/// has to be measured by the scanner rather than by whichever session happened
+/// to press the button and may see only part of the bucket.
 async fn bucket_usage(
     session: ActiveSession,
     Path(bucket): Path<String>,
@@ -184,10 +196,12 @@ pub struct MoveObjectsRequest {
 /// Moves objects, copying each one before deleting the source that landed.
 async fn relocate(
     session: ActiveSession,
+    State(state): State<AppState>,
     Json(request): Json<MoveObjectsRequest>,
 ) -> Result<Json<MoveResultDto>, ApiError> {
     let result = move_objects(
         session.storage.as_ref(),
+        state.capacity_index(),
         &MoveObjectsInput {
             source_bucket: request.source_bucket,
             destination_bucket: request.destination_bucket,

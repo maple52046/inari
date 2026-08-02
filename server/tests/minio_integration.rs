@@ -12,6 +12,7 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 
+use inari_server::adapters::capacity::NoopCapacityIndex;
 use inari_server::adapters::s3::{HttpClients, S3StorageFactory};
 use inari_server::application::delete_objects::delete_objects;
 use inari_server::application::list_buckets::list_buckets;
@@ -216,6 +217,7 @@ async fn a_move_relocates_the_object_and_removes_the_source() {
     let destination = format!("moved/{}", source.name);
     let result = move_objects(
         storage.as_ref(),
+        &NoopCapacityIndex,
         &MoveObjectsInput {
             source_bucket: bucket.clone(),
             destination_bucket: bucket.clone(),
@@ -243,9 +245,14 @@ async fn a_move_relocates_the_object_and_removes_the_source() {
         "the source must be gone once its copy landed"
     );
 
-    delete_objects(storage.as_ref(), &bucket, &[destination])
-        .await
-        .expect("cleaning up the moved object must succeed");
+    delete_objects(
+        storage.as_ref(),
+        &NoopCapacityIndex,
+        &bucket,
+        &[destination],
+    )
+    .await
+    .expect("cleaning up the moved object must succeed");
 }
 
 #[tokio::test]

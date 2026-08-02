@@ -4,7 +4,9 @@ use std::collections::HashSet;
 
 use crate::domain::errors::StorageError;
 use crate::domain::models::{KeyFailure, MoveResult, MovedObject};
-use crate::domain::ports::{CopyObjectInput, ObjectStorage};
+use crate::domain::ports::{CapacityIndex, CopyObjectInput, ObjectStorage};
+
+use super::dirty_scopes::scopes_for_move;
 
 const SAME_LOCATION: &str = "Source and destination are the same";
 const EMPTY_DESTINATION: &str = "Destination key is empty";
@@ -46,6 +48,10 @@ pub struct MoveObjectsInput {
 /// The operation is not atomic: callers must handle a result where only some
 /// entries moved, including entries whose copy landed but whose source survived.
 ///
+/// Both ends are marked for re-measurement as part of moving, so no caller can
+/// relocate objects and leave the stored figures describing where they used to
+/// be. Marking is record-only, so nothing here waits on the re-measurement.
+///
 /// # Errors
 ///
 /// Returns a [`StorageError`] only when the batch delete of already-copied
@@ -53,6 +59,7 @@ pub struct MoveObjectsInput {
 /// [`MoveResult::failed`].
 pub async fn move_objects(
     storage: &dyn ObjectStorage,
+    index: &dyn CapacityIndex,
     input: &MoveObjectsInput,
 ) -> Result<MoveResult, StorageError> {
     let mut failed: Vec<KeyFailure> = Vec::new();
@@ -111,10 +118,12 @@ pub async fn move_objects(
     }
 
     if copied.is_empty() {
-        return Ok(MoveResult {
+        let result = MoveResult {
             moved: Vec::new(),
             failed,
-        });
+        };
+        index.mark_dirty(&scopes_for_move(input, &result));
+        return Ok(result);
     }
 
     let source_keys: Vec<String> = copied.iter().map(|entry| entry.key.clone()).collect();
@@ -137,7 +146,9 @@ pub async fn move_objects(
         }
     }
 
-    Ok(MoveResult { moved, failed })
+    let result = MoveResult { moved, failed };
+    index.mark_dirty(&scopes_for_move(input, &result));
+    Ok(result)
 }
 
 fn failure(key: &str, message: &str) -> KeyFailure {
@@ -150,7 +161,7 @@ fn failure(key: &str, message: &str) -> KeyFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::test_double::FakeStorage;
+    use crate::application::test_double::{FakeCapacityIndex, FakeStorage};
 
     fn input(entries: Vec<(&str, &str)>) -> MoveObjectsInput {
         MoveObjectsInput {
@@ -169,9 +180,13 @@ mod tests {
     #[tokio::test]
     async fn a_move_copies_then_deletes_the_source() {
         let storage = FakeStorage::default();
-        let result = move_objects(&storage, &input(vec![("a.jpg", "b.jpg")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", "b.jpg")]),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(result.moved.len(), 1);
         assert_eq!(result.moved[0].destination_key, "b.jpg");
@@ -188,9 +203,13 @@ mod tests {
     #[tokio::test]
     async fn an_occupied_destination_is_refused_without_copying() {
         let storage = FakeStorage::default().with_existing_keys(["b.jpg"]);
-        let result = move_objects(&storage, &input(vec![("a.jpg", "b.jpg")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", "b.jpg")]),
+        )
+        .await
+        .unwrap();
 
         assert!(result.moved.is_empty());
         assert_eq!(result.failed[0].message, DESTINATION_TAKEN);
@@ -203,9 +222,13 @@ mod tests {
     #[tokio::test]
     async fn moving_onto_itself_is_refused() {
         let storage = FakeStorage::default();
-        let result = move_objects(&storage, &input(vec![("a.jpg", "a.jpg")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", "a.jpg")]),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(result.failed[0].message, SAME_LOCATION);
         assert!(storage.calls.lock().unwrap().is_empty());
@@ -214,27 +237,39 @@ mod tests {
     #[tokio::test]
     async fn a_folder_destination_is_refused() {
         let storage = FakeStorage::default();
-        let result = move_objects(&storage, &input(vec![("a.jpg", "archive/")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", "archive/")]),
+        )
+        .await
+        .unwrap();
         assert_eq!(result.failed[0].message, FOLDER_DESTINATION);
     }
 
     #[tokio::test]
     async fn a_blank_destination_is_refused() {
         let storage = FakeStorage::default();
-        let result = move_objects(&storage, &input(vec![("a.jpg", "   ")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", "   ")]),
+        )
+        .await
+        .unwrap();
         assert_eq!(result.failed[0].message, EMPTY_DESTINATION);
     }
 
     #[tokio::test]
     async fn a_valid_entry_still_moves_when_another_is_refused() {
         let storage = FakeStorage::default();
-        let result = move_objects(&storage, &input(vec![("a.jpg", ""), ("b.jpg", "c.jpg")]))
-            .await
-            .unwrap();
+        let result = move_objects(
+            &storage,
+            &FakeCapacityIndex::default(),
+            &input(vec![("a.jpg", ""), ("b.jpg", "c.jpg")]),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(result.moved.len(), 1);
         assert_eq!(result.moved[0].key, "b.jpg");
@@ -242,10 +277,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn both_ends_of_a_move_are_marked_for_re_measurement() {
+        let storage = FakeStorage::default();
+        let index = FakeCapacityIndex::default();
+
+        move_objects(
+            &storage,
+            &index,
+            &MoveObjectsInput {
+                source_bucket: "photos".to_owned(),
+                destination_bucket: "archive".to_owned(),
+                entries: vec![MoveEntry {
+                    key: "raw/a.jpg".to_owned(),
+                    destination_key: "old/a.jpg".to_owned(),
+                }],
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(index.dirtied(), ["archive/old/", "photos/raw/"]);
+    }
+
+    #[tokio::test]
     async fn the_same_key_in_another_bucket_is_a_real_move() {
         let storage = FakeStorage::default();
         let result = move_objects(
             &storage,
+            &FakeCapacityIndex::default(),
             &MoveObjectsInput {
                 destination_bucket: "archive".to_owned(),
                 ..input(vec![("a.jpg", "a.jpg")])

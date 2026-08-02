@@ -1,5 +1,6 @@
 //! Cleanup planner endpoints.
 
+use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
 
@@ -32,9 +33,12 @@ async fn scan(
 /// Deletes the selected candidates.
 async fn delete(
     session: ActiveSession,
+    State(state): State<AppState>,
     Json(targets): Json<Vec<CleanupDeleteTargetDto>>,
 ) -> Result<Json<Vec<CleanupBucketDeleteResultDto>>, ApiError> {
     let targets: Vec<_> = targets.into_iter().map(Into::into).collect();
-    let results = delete_cleanup_candidates(session.storage.as_ref(), &targets).await?;
+    let results =
+        delete_cleanup_candidates(session.storage.as_ref(), state.capacity_index(), &targets)
+            .await?;
     Ok(Json(results.into_iter().map(Into::into).collect()))
 }

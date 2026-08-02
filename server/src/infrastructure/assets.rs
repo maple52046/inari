@@ -38,6 +38,8 @@ pub struct Asset {
 #[derive(Debug, Clone)]
 pub struct Spa {
     index_html: String,
+    /// Kept so debug builds can re-render the document per request.
+    base_path: String,
 }
 
 impl Spa {
@@ -70,13 +72,26 @@ impl Spa {
 
         Ok(Self {
             index_html: index_html.replace(BASE_PATH_PLACEHOLDER, base_path),
+            base_path: base_path.to_owned(),
         })
     }
 
     /// Returns the document served for every application route.
+    ///
+    /// Re-rendered per request in debug builds. The document names the bundle's
+    /// content-hashed entry point, so a frontend rebuild changes it; serving
+    /// the copy made at start-up would keep pointing at the previous build and
+    /// make edits look like they had no effect. Release builds embed a bundle
+    /// that cannot change under them, so they answer from the cached copy.
     #[must_use]
-    pub fn index_html(&self) -> &str {
-        &self.index_html
+    pub fn index_html(&self) -> std::borrow::Cow<'_, str> {
+        #[cfg(debug_assertions)]
+        {
+            if let Ok(fresh) = Self::new(&self.base_path) {
+                return std::borrow::Cow::Owned(fresh.index_html);
+            }
+        }
+        std::borrow::Cow::Borrowed(&self.index_html)
     }
 
     /// Looks up a bundled file.
