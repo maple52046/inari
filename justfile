@@ -56,6 +56,10 @@ test-web:
 lint:
     cd {{server_dir}} && cargo fmt --check
     cd {{server_dir}} && cargo clippy --all-targets --all-features -- -D warnings
+    # Release too, because `cfg(debug_assertions)` makes the two configurations
+    # compile different code: a debug-only branch leaves whatever it was the
+    # only user of dead in release, and linting one profile would never see it.
+    cd {{server_dir}} && cargo clippy --release --all-targets --all-features -- -D warnings
     cd {{web_dir}} && npm run lint
     cd {{web_dir}} && npm run typecheck
 

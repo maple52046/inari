@@ -39,6 +39,11 @@ pub struct Asset {
 pub struct Spa {
     index_html: String,
     /// Kept so debug builds can re-render the document per request.
+    ///
+    /// Release builds compile that path out, leaving the field genuinely
+    /// unread; the allowance is narrowed to those builds so a real dead field
+    /// introduced later is still reported.
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     base_path: String,
 }
 
