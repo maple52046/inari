@@ -20,7 +20,8 @@ configured before it is of any use.
 
   1. Edit /etc/inari/config.env. At minimum set DEFAULT_S3_ENDPOINT, which is
      the address pre-filled on the connect screen. Users still supply their own
-     credentials; the server holds none of its own.
+     credentials, and by default the server holds none of its own -- the one
+     exception is the optional capacity index, described below.
 
   2. Start it:
 
@@ -45,6 +46,44 @@ package means an upgrade never prompts about a file containing a secret.
 
 Setting SESSION_SECRET in config.env overrides it, which is what to do when
 several hosts must share sessions behind a load balancer.
+
+Shared capacity index
+---------------------
+
+Off by default. Without it, storage usage is measured on demand and cached in
+the browser tab that asked, so bucket sizes are blank until someone presses
+Scan and are gone again after a reload.
+
+Setting INARI_CAPACITY_INDEX=shared makes the server keep one set of figures
+for everybody: present on arrival, refreshed once stale, and re-measured after
+a delete or a move. It needs three things in config.env, and the second is not
+optional:
+
+  INARI_CAPACITY_INDEX=shared
+  INARI_LOCK_CONNECTION=true
+  INARI_SCANNER_ACCESS_KEY_ID=inari-scanner
+
+plus the matching secret in /etc/inari/secret.env rather than config.env, since
+that file is 0600 and is not a conffile:
+
+  INARI_SCANNER_SECRET_ACCESS_KEY=...
+
+INARI_LOCK_CONNECTION is required because a scanner key authenticates against
+exactly one backend, so an index it builds only describes what every session
+sees when they are all pinned to that backend. Start-up fails when the two
+disagree, and with Restart=on-failure that presents as a restart loop rather
+than a quiet misconfiguration, so check `systemctl status inari` afterwards.
+
+Grant the scanner key list access only: s3:ListBucket and s3:ListAllMyBuckets,
+and not s3:GetObject. The scanner never reads object contents, so withholding
+it means a compromise of this host leaks key names and sizes rather than data.
+
+This is the one feature that gives the server a credential of its own. Weigh
+that against what it buys before enabling it on a host others can reach.
+
+The remaining settings are ceilings and are documented in config.env. The one
+worth knowing is INARI_CAPACITY_SCAN_RATE, in listing requests per second,
+which is what bounds the load the index puts on the backend.
 
 Reverse proxy
 -------------
