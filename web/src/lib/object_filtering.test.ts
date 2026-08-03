@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ObjectSummary } from "@/domain/s3/models";
-import { filterObjects, sortObjects } from "./object_filtering";
+import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
+import { filterObjects, filterPrefixes, sortObjects } from "./object_filtering";
 
 function obj(key: string, size: number, lastModified?: Date): ObjectSummary {
   return { key, name: key, size, lastModified };
@@ -14,7 +14,7 @@ const sample: ObjectSummary[] = [
 
 describe("filterObjects", () => {
   it("matches by case-insensitive substring of the key", () => {
-    expect(filterObjects(sample, { search: "BETA" })).toHaveLength(1);
+    expect(filterObjects(sample, { keyContains: "BETA" })).toHaveLength(1);
   });
 
   it("filters by min and max size inclusively", () => {
@@ -35,6 +35,43 @@ describe("filterObjects", () => {
     expect(filterObjects(undated, { after: new Date("2020-01-01") })).toEqual(
       [],
     );
+  });
+});
+
+describe("filterPrefixes", () => {
+  const folders: CommonPrefix[] = [
+    { prefix: "raw/2024/", name: "2024/" },
+    { prefix: "raw/2025/", name: "2025/" },
+    { prefix: "raw/thumbs/", name: "thumbs/" },
+  ];
+
+  it("keeps every folder while no filter is set", () => {
+    expect(filterPrefixes(folders, {})).toHaveLength(3);
+  });
+
+  it("drops folders whose path does not match", () => {
+    // A folder left in place while a filter is typed reads as a folder that
+    // matched it, which is the impression this exists to prevent.
+    const result = filterPrefixes(folders, { keyContains: "202" });
+    expect(result.map((folder) => folder.name)).toEqual(["2024/", "2025/"]);
+  });
+
+  it("matches the whole path, as the object filter does", () => {
+    expect(filterPrefixes(folders, { keyContains: "raw/" })).toHaveLength(3);
+  });
+
+  it("drops every folder while a size or date filter is set", () => {
+    // Neither can be evaluated against a folder, so keeping one would claim it
+    // satisfies a predicate nothing checked.
+    expect(filterPrefixes(folders, { minSize: 1 })).toEqual([]);
+    expect(filterPrefixes(folders, { maxSize: 1 })).toEqual([]);
+    expect(filterPrefixes(folders, { before: new Date() })).toEqual([]);
+    expect(filterPrefixes(folders, { after: new Date() })).toEqual([]);
+  });
+
+  it("does not mutate the input", () => {
+    filterPrefixes(folders, { keyContains: "2024" });
+    expect(folders).toHaveLength(3);
   });
 });
 

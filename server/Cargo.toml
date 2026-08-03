@@ -1,6 +1,6 @@
 [package]
 name = "inari-server"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Rust server for Inari: JSON API over S3-compatible storage plus the embedded SPA."
 license = "MIT"

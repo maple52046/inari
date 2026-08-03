@@ -1,8 +1,15 @@
-import type { ObjectSummary } from "@/domain/s3/models";
+import type { CommonPrefix, ObjectSummary } from "@/domain/s3/models";
 
 /** Client-side filter applied over the currently loaded objects. */
 export interface ObjectFilter {
-  search?: string;
+  /**
+   * Keep objects whose key contains this, case-insensitively.
+   *
+   * Named for what it does rather than "search", which would suggest asking the
+   * backend a question. It matches the whole key, so a prefix segment matches
+   * as readily as a filename.
+   */
+  keyContains?: string;
   /** Minimum size in bytes (inclusive). */
   minSize?: number;
   /** Maximum size in bytes (inclusive). */
@@ -11,6 +18,48 @@ export interface ObjectFilter {
   before?: Date;
   /** Keep objects modified strictly after this instant. */
   after?: Date;
+}
+
+/** Whether a predicate is set that describes an object rather than a name. */
+function hasObjectOnlyPredicate(filter: ObjectFilter): boolean {
+  return (
+    filter.minSize !== undefined ||
+    filter.maxSize !== undefined ||
+    filter.before !== undefined ||
+    filter.after !== undefined
+  );
+}
+
+/**
+ * Filters folder rows by what a listing can actually judge about them.
+ *
+ * Folders have to be filtered alongside objects, not left in place: a row that
+ * survives a filter reads as a row that matched it, so an untouched folder
+ * claims either that its path matched or that something inside it did. Neither
+ * is true, and the listing gives no way to make it true.
+ *
+ * A folder has a path but no size and no modification time, so a predicate over
+ * those cannot be evaluated against it at all. Rather than guess, folders step
+ * aside while such a predicate is active.
+ *
+ * What this cannot do is see inside: only the folder's own path is examined, so
+ * a hidden folder may still contain matches that are a listing away. That is
+ * the same reach the object filter has, which stops at what is loaded.
+ */
+export function filterPrefixes(
+  prefixes: readonly CommonPrefix[],
+  filter: ObjectFilter,
+): CommonPrefix[] {
+  if (hasObjectOnlyPredicate(filter)) {
+    return [];
+  }
+  const keyContains = filter.keyContains?.trim().toLowerCase();
+  if (!keyContains) {
+    return [...prefixes];
+  }
+  return prefixes.filter((prefix) =>
+    prefix.prefix.toLowerCase().includes(keyContains),
+  );
 }
 
 export type SortKey = "name" | "size" | "lastModified";
@@ -31,9 +80,9 @@ export function filterObjects(
   objects: readonly ObjectSummary[],
   filter: ObjectFilter,
 ): ObjectSummary[] {
-  const search = filter.search?.trim().toLowerCase();
+  const keyContains = filter.keyContains?.trim().toLowerCase();
   return objects.filter((object) => {
-    if (search && !object.key.toLowerCase().includes(search)) {
+    if (keyContains && !object.key.toLowerCase().includes(keyContains)) {
       return false;
     }
     if (filter.minSize !== undefined && object.size < filter.minSize) {

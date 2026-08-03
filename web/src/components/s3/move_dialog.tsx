@@ -2,16 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CornerLeftUp, Folder, FolderInput } from "lucide-react";
-import {
-  Box,
-  HStack,
-  Icon,
-  List,
-  NativeSelect,
-  Span,
-  Stack,
-  Text,
-} from "@chakra-ui/react";
+import { Box, HStack, Icon, List, Span, Stack, Text } from "@chakra-ui/react";
 import type {
   CommonPrefix,
   MoveResult,
@@ -21,6 +12,7 @@ import type { MoveEntry } from "@/domain/s3/move";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField, toSelectOptions } from "@/components/ui/select_field";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -78,6 +70,7 @@ export function MoveDialog({
 
   const single = targets.length === 1 ? targets[0] : undefined;
   const destinationBucket = chosenBucket ?? bucket;
+  const bucketOptions = useMemo(() => toSelectOptions(buckets), [buckets]);
   const folder = typedFolder ?? prefix;
   const name = typedName ?? (single ? lastPathSegment(single.key) : "");
 
@@ -255,25 +248,23 @@ export function MoveDialog({
             <Text asChild color="fg.muted" fontSize="xs" mb="1">
               <label htmlFor="move-bucket">Destination bucket</label>
             </Text>
-            <NativeSelect.Root>
-              <NativeSelect.Field
-                id="move-bucket"
-                value={destinationBucket}
-                onChange={(event) => {
-                  setChosenBucket(event.currentTarget.value);
-                  // A path is meaningful only inside the bucket it was browsed
-                  // in, so switching buckets restarts at its root.
-                  setTypedFolder("");
-                }}
-              >
-                {buckets.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-              <NativeSelect.Indicator />
-            </NativeSelect.Root>
+            <SelectField
+              id="move-bucket"
+              value={destinationBucket}
+              onChange={(value) => {
+                setChosenBucket(value);
+                // A path is meaningful only inside the bucket it was browsed
+                // in, so switching buckets restarts at its root.
+                setTypedFolder("");
+              }}
+              options={bucketOptions}
+              label="Destination bucket"
+              width="full"
+              // Inside a dialog: portalling would put the list outside the
+              // dialog's DOM, where a click on an option reads as a click
+              // outside and closes the dialog.
+              portalled={false}
+            />
           </Box>
 
           <Box>

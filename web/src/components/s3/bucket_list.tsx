@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Database, Search } from "lucide-react";
+import { Database, HardDrive, ListFilter } from "lucide-react";
 import {
   Box,
+  Grid,
   HStack,
   Icon,
   InputGroup,
+  Progress,
   SimpleGrid,
   Span,
   Stack,
@@ -15,17 +17,37 @@ import {
 } from "@chakra-ui/react";
 import type { BucketSummary } from "@/domain/s3/models";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty_state";
 import { formatDateTime } from "@/lib/date";
 import { formatSize } from "@/lib/format_size";
 import { formatShare, toUsageByBucket } from "@/lib/usage_slices";
 import type { BucketUsage } from "@/lib/usage_slices";
 import type { UsageCacheStamp } from "@/lib/usage_cache";
-import { useCachedUsage } from "./use_cached_usage";
+import { useBucketScan } from "./use_bucket_scan";
+// Loaded on demand so the charting library stays out of the bucket homepage's
+// bundle. The page is the app's entry point and the chart is supplementary, so
+// paying ~320KB up front on every visit would be wasteful.
+const UsagePieChart = lazy(() =>
+  import("./usage_pie_chart").then((module) => ({
+    default: module.UsagePieChart,
+  })),
+);
 
 /** Stands in for any figure a scan has not produced yet. */
 const NO_VALUE = "-";
+
+/**
+ * Width of the chart column.
+ *
+ * The toolbar above the content uses the same track, so the search box spans
+ * the cards and the button spans the chart. Defined once because the two rows
+ * only read as one layout while they agree.
+ */
+const CHART_COLUMN = "20rem";
 
 /**
  * Usage footer for a card.
@@ -88,7 +110,13 @@ function UsageFooter({
   );
 }
 
-/** Searchable grid of bucket cards linking into the object browser. */
+/**
+ * The bucket homepage: searchable cards, the scan control, and the usage chart.
+ *
+ * One component rather than a list beside a usage panel, because the two
+ * interleave: the control sits on the search row and the chart beside the grid.
+ * Splitting them would mean a layout that neither could own.
+ */
 export function BucketList({
   buckets,
   cacheStamp,
@@ -96,105 +124,207 @@ export function BucketList({
   buckets: BucketSummary[];
   cacheStamp: UsageCacheStamp;
 }) {
-  const [query, setQuery] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
+  // Narrows a list that is already complete: the bucket listing arrives in one
+  // call, so nothing here is fetched and nothing is left out.
   const filtered = useMemo(() => {
-    const trimmed = query.trim().toLowerCase();
+    const trimmed = nameFilter.trim().toLowerCase();
     if (!trimmed) {
       return buckets;
     }
     return buckets.filter((bucket) =>
       bucket.name.toLowerCase().includes(trimmed),
     );
-  }, [buckets, query]);
+  }, [buckets, nameFilter]);
 
-  // Reading the same source the scanner writes is what lets a scan started in
-  // the panel above land on these cards without lifting state into a provider.
-  const usage = useCachedUsage(cacheStamp);
-  const usageByBucket = useMemo(
-    () => toUsageByBucket(usage.scopes),
-    [usage.scopes],
+  const bucketNames = useMemo(
+    () => buckets.map((bucket) => bucket.name),
+    [buckets],
   );
+  const scan = useBucketScan(bucketNames, cacheStamp);
+
+  const usageByBucket = useMemo(
+    () => toUsageByBucket(scan.scopes),
+    [scan.scopes],
+  );
+
+  const hasResults = scan.scopes.length > 0;
+  // A pie of nothing but zero-byte buckets has no slices, so the column would
+  // otherwise reserve space for an empty card.
+  const hasChart = scan.scopes.some((scope) => scope.totalSize > 0);
+
+  // `minmax(0, ...)` rather than `1fr`, so a long bucket name cannot widen the
+  // first column and push what follows off the row.
+  const contentColumns = {
+    base: "1fr",
+    xl: hasChart ? `minmax(0, 1fr) ${CHART_COLUMN}` : "1fr",
+  };
+  // Tracks the content below wherever there is a split to track. Narrower than
+  // xl the chart sits under the grid, so there is nothing to line up with and
+  // the button falls back to its own width.
+  const toolbarColumns = {
+    base: "1fr",
+    md: "minmax(0, 1fr) auto",
+    xl: hasChart ? `minmax(0, 1fr) ${CHART_COLUMN}` : "minmax(0, 1fr) auto",
+  };
 
   return (
     <Stack gap="4">
-      <InputGroup
-        maxW="sm"
-        startElement={
-          <Icon size="sm" color="fg.muted" asChild>
-            <Search />
-          </Icon>
-        }
-      >
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search buckets"
-          aria-label="Search buckets"
-        />
-      </InputGroup>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={Database}
-          title="No buckets found"
-          description={
-            buckets.length === 0
-              ? "This connection has no accessible buckets."
-              : "No buckets match your search."
+      <Grid templateColumns={toolbarColumns} gap="4" alignItems="center">
+        <InputGroup
+          startElement={
+            <Icon size="sm" color="fg.muted" asChild>
+              <ListFilter />
+            </Icon>
           }
-        />
-      ) : (
-        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap="4">
-          {filtered.map((bucket) => {
-            const bucketUsage = usageByBucket.get(bucket.name);
-            return (
-              <Link
-                key={bucket.name}
-                to={`/buckets/${encodeURIComponent(bucket.name)}`}
-              >
-                <Card
-                  height="full"
-                  display="flex"
-                  flexDirection="column"
-                  transition="border-color 0.15s, box-shadow 0.15s"
-                  _hover={{ borderColor: "brand.solid", shadow: "md" }}
+        >
+          <Input
+            value={nameFilter}
+            onChange={(event) => setNameFilter(event.target.value)}
+            placeholder="Filter by name"
+            aria-label="Filter buckets by name"
+          />
+        </InputGroup>
+        <Button
+          width="full"
+          onClick={() => scan.scan()}
+          disabled={scan.scanning || buckets.length === 0}
+        >
+          <Icon size="sm" asChild>
+            <HardDrive />
+          </Icon>
+          {scan.shared ? "Rescan" : "Scan"} all buckets ({buckets.length})
+        </Button>
+      </Grid>
+
+      {scan.progress ? (
+        <Progress.Root
+          value={scan.progress.done}
+          max={scan.progress.total}
+          size="xs"
+          striped={scan.scanning}
+          animated={scan.scanning}
+        >
+          <HStack color="fg.muted" fontSize="sm" gap="2" mb="1">
+            {scan.scanning ? <Spinner size="xs" /> : null}
+            <Progress.Label>
+              Scanned {scan.progress.done} of {scan.progress.total} bucket
+              {scan.progress.total === 1 ? "" : "s"}
+            </Progress.Label>
+          </HStack>
+          <Progress.Track>
+            <Progress.Range />
+          </Progress.Track>
+        </Progress.Root>
+      ) : null}
+
+      {scan.unmeasured > 0 && !scan.scanning ? (
+        <Alert variant="info">
+          {scan.unmeasured} bucket{scan.unmeasured === 1 ? " has" : "s have"}{" "}
+          not been measured yet.
+        </Alert>
+      ) : null}
+
+      {scan.failures.length > 0 ? (
+        <Alert variant="error">
+          Failed to scan:{" "}
+          {scan.failures.map((failure) => failure.bucket).join(", ")}
+        </Alert>
+      ) : null}
+
+      {/* The estimate has to be qualified wherever it is shown, but with no
+          figure on screen there is nothing to qualify. */}
+      {hasResults ? (
+        <Alert variant="warning">
+          <Text>
+            Usage is calculated by scanning visible objects through
+            S3-compatible APIs. It may not include provider-specific overhead,
+            incomplete multipart uploads, object versions, delete markers, or
+            backend internal metadata.
+          </Text>
+        </Alert>
+      ) : null}
+
+      <Grid templateColumns={contentColumns} gap="4" alignItems="start">
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Database}
+            title="No buckets found"
+            description={
+              buckets.length === 0
+                ? "This connection has no accessible buckets."
+                : "No buckets match that name."
+            }
+          />
+        ) : (
+          <SimpleGrid columns={{ base: 1, sm: 2, "2xl": 3 }} gap="4">
+            {filtered.map((bucket) => {
+              const bucketUsage = usageByBucket.get(bucket.name);
+              return (
+                <Link
+                  key={bucket.name}
+                  to={`/buckets/${encodeURIComponent(bucket.name)}`}
                 >
-                  <Stack gap="3" px="4" pt="4" pb="4" flex="1">
-                    <HStack
-                      align="center"
-                      justify="center"
-                      boxSize="9"
-                      borderRadius="l2"
-                      bg="brand.muted"
-                      flexShrink="0"
-                    >
-                      <Icon size="md" color="brand.solid" asChild>
-                        <Database />
-                      </Icon>
-                    </HStack>
-                    <Box minW="0">
-                      <Text truncate fontWeight="semibold" title={bucket.name}>
-                        {bucket.name}
-                      </Text>
-                      <Text color="fg.muted" fontSize="xs">
-                        {bucket.createdAt
-                          ? `Created ${formatDateTime(bucket.createdAt)}`
-                          : "Creation date unavailable"}
-                      </Text>
-                    </Box>
-                  </Stack>
-                  <UsageFooter
-                    usage={bucketUsage}
-                    scannedAt={
-                      usage.scannedAtByScope.get(bucket.name) ?? usage.scannedAt
-                    }
-                  />
-                </Card>
-              </Link>
-            );
-          })}
-        </SimpleGrid>
-      )}
+                  <Card
+                    height="full"
+                    display="flex"
+                    flexDirection="column"
+                    transition="border-color 0.15s, box-shadow 0.15s"
+                    _hover={{ borderColor: "brand.solid", shadow: "md" }}
+                  >
+                    <Stack gap="3" px="4" pt="4" pb="4" flex="1">
+                      <HStack
+                        align="center"
+                        justify="center"
+                        boxSize="9"
+                        borderRadius="l2"
+                        bg="brand.muted"
+                        flexShrink="0"
+                      >
+                        <Icon size="md" color="brand.solid" asChild>
+                          <Database />
+                        </Icon>
+                      </HStack>
+                      <Box minW="0">
+                        <Text
+                          truncate
+                          fontWeight="semibold"
+                          title={bucket.name}
+                        >
+                          {bucket.name}
+                        </Text>
+                        <Text color="fg.muted" fontSize="xs">
+                          {bucket.createdAt
+                            ? `Created ${formatDateTime(bucket.createdAt)}`
+                            : "Creation date unavailable"}
+                        </Text>
+                      </Box>
+                    </Stack>
+                    <UsageFooter
+                      usage={bucketUsage}
+                      scannedAt={
+                        scan.scannedAtByScope.get(bucket.name) ?? scan.scannedAt
+                      }
+                    />
+                  </Card>
+                </Link>
+              );
+            })}
+          </SimpleGrid>
+        )}
+
+        {hasChart ? (
+          <Card>
+            <Box p="4">
+              {/* The fallback reserves the chart's height so the card does not
+                  collapse and reflow while the bundle arrives. */}
+              <Suspense fallback={<Box height="17rem" />}>
+                <UsagePieChart scopes={scan.scopes} />
+              </Suspense>
+            </Box>
+          </Card>
+        ) : null}
+      </Grid>
     </Stack>
   );
 }

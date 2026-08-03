@@ -39,7 +39,7 @@ export function UsagePieChart({ scopes }: { scopes: UsageScope[] }) {
   return (
     <Box>
       <Text fontSize="sm" fontWeight="medium" mb="1">
-        Size share
+        Usage
       </Text>
       <Box height="12rem">
         <ResponsiveContainer width="100%" height="100%">

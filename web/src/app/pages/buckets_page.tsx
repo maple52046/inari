@@ -3,7 +3,6 @@ import { Stack } from "@chakra-ui/react";
 import { listBucketsAction } from "@/api/actions";
 import { reviveBucket } from "@/api/revive";
 import { BucketList } from "@/components/s3/bucket_list";
-import { UsagePanel } from "@/components/s3/usage_panel";
 import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page_header";
 import { useResource } from "@/lib/use_resource";
@@ -51,19 +50,11 @@ export function BucketsPage() {
       {listing.error ? (
         <Alert variant="error">{listing.error}</Alert>
       ) : (
-        <>
-          {/* One listing feeds both the scanner's bucket set and the grid below.
-              Both are handed the same stamp so the cards can read the scan the
-              panel writes.
-
-              Measuring a single bucket or folder lives in the object browser
-              instead, where the location being measured is the one on screen. */}
-          <UsagePanel
-            availableBuckets={(buckets ?? []).map((entry) => entry.name)}
-            cacheStamp={cacheStamp}
-          />
-          <BucketList buckets={buckets ?? []} cacheStamp={cacheStamp} />
-        </>
+        /* The list owns the scan control and the chart as well as the cards,
+           because the three interleave on one layout. Measuring a single bucket
+           or folder lives in the object browser instead, where the location
+           being measured is the one on screen. */
+        <BucketList buckets={buckets ?? []} cacheStamp={cacheStamp} />
       )}
     </Stack>
   );

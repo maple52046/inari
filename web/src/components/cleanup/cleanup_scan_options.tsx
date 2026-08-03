@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HStack, NativeSelect, SimpleGrid } from "@chakra-ui/react";
+import { HStack, SimpleGrid } from "@chakra-ui/react";
 import { Label } from "@/components/ui/label";
+import { DateField } from "@/components/ui/date_field";
 import { Input } from "@/components/ui/input";
+import { SelectField, toSelectOptions } from "@/components/ui/select_field";
 import { toDateInputValue } from "@/lib/date";
 
 /** Normalized scan options emitted to the planner. */
@@ -12,6 +14,8 @@ export interface CleanupScanOptionsValue {
   olderThanIso?: string;
   maxResults: number;
 }
+
+const UNIT_OPTIONS = toSelectOptions(["KB", "MB", "GB"]);
 
 const SIZE_UNITS: Record<string, number> = {
   KB: 1024,
@@ -77,27 +81,22 @@ export function CleanupScanOptions({
             inputMode="decimal"
             placeholder="Any"
           />
-          <NativeSelect.Root width="auto">
-            <NativeSelect.Field
-              value={minUnit}
-              onChange={(event) => setMinUnit(event.currentTarget.value)}
-              aria-label="Minimum size unit"
-            >
-              {Object.keys(SIZE_UNITS).map((unit) => (
-                <option key={unit}>{unit}</option>
-              ))}
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
+          <SelectField
+            value={minUnit}
+            onChange={setMinUnit}
+            options={UNIT_OPTIONS}
+            label="Minimum size unit"
+            width="5.5rem"
+          />
         </HStack>
       </div>
       <div>
         <Label htmlFor="cleanup-older-than">Older than date</Label>
-        <Input
+        <DateField
           id="cleanup-older-than"
-          type="date"
           value={olderThan}
-          onChange={(event) => setOlderThan(event.target.value)}
+          onChange={setOlderThan}
+          label="Older than date"
         />
       </div>
       <div>

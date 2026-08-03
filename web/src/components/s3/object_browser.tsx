@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, FileQuestion, ScanLine } from "lucide-react";
+import { ChevronDown, FileQuestion } from "lucide-react";
 import { Box, Flex, Icon, Span, Stack } from "@chakra-ui/react";
 import type {
   CommonPrefix,
@@ -11,7 +11,11 @@ import type {
   ObjectSummary,
 } from "@/domain/s3/models";
 import type { ObjectFilter, SortSpec } from "@/lib/object_filtering";
-import { filterObjects, sortObjects } from "@/lib/object_filtering";
+import {
+  filterObjects,
+  filterPrefixes,
+  sortObjects,
+} from "@/lib/object_filtering";
 import type {
   DownloadMode,
   DownloadPreference,
@@ -37,10 +41,6 @@ import { childOfPrefix } from "@/lib/object_path";
 import { getCookiePath } from "@/lib/base_path";
 import { useFolderUsage } from "./use_folder_usage";
 import { loadObjectsAction } from "@/api/actions";
-
-/** What a measured folder size does and does not account for. */
-const MEASURE_HINT =
-  "Adds up the objects listed beneath each folder. Excludes provider-specific overhead, incomplete multipart uploads, object versions, delete markers, and backend internal metadata.";
 
 function mergePrefixes(
   current: CommonPrefix[],
@@ -157,6 +157,11 @@ export function ObjectBrowser({
     () => sortObjects(filterObjects(objects, filter), sort),
     [objects, filter, sort],
   );
+  const visiblePrefixes = useMemo(
+    () => filterPrefixes(prefixes, filter),
+    [prefixes, filter],
+  );
+  const hiddenPrefixes = prefixes.length - visiblePrefixes.length;
 
   const selectedObjects = useMemo(
     () => objects.filter((object) => selected.has(object.key)),
@@ -315,7 +320,7 @@ export function ObjectBrowser({
     });
   }
 
-  const isEmpty = visible.length === 0 && prefixes.length === 0;
+  const isEmpty = visible.length === 0 && visiblePrefixes.length === 0;
 
   return (
     <DownloadLinkProvider
@@ -343,6 +348,7 @@ export function ObjectBrowser({
           onDownloadModeChange={changeDownloadMode}
           expiry={expiry}
           onExpiryChange={changeExpiry}
+          folderSizes={usage}
         />
 
         {isEmpty ? (
@@ -353,36 +359,10 @@ export function ObjectBrowser({
           />
         ) : (
           <>
-            {/* The caveat rides on the button rather than a standing paragraph,
-                the way the table's URL column carries its own precondition. It
-                still has to be stated somewhere: a scanned total is an estimate,
-                not an authoritative figure. */}
-            <Flex justify="flex-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => usage.measure()}
-                disabled={usage.measuring}
-                title={MEASURE_HINT}
-              >
-                {usage.measuring ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <Icon size="sm" asChild>
-                    <ScanLine />
-                  </Icon>
-                )}
-                {usage.measuring
-                  ? "Measuring…"
-                  : usage.measured || usage.automatic
-                    ? "Re-measure folder sizes"
-                    : "Measure folder sizes"}
-              </Button>
-            </Flex>
             <Box display={{ base: "none", md: "block" }}>
               <ObjectTable
                 bucket={bucket}
-                prefixes={prefixes}
+                prefixes={visiblePrefixes}
                 objects={visible}
                 selected={selected}
                 allSelected={allSelected}
@@ -400,7 +380,7 @@ export function ObjectBrowser({
             <Box display={{ base: "block", md: "none" }}>
               <ObjectCardList
                 bucket={bucket}
-                prefixes={prefixes}
+                prefixes={visiblePrefixes}
                 objects={visible}
                 selected={selected}
                 folderUsage={usage.byPrefix}
@@ -425,6 +405,12 @@ export function ObjectBrowser({
           <Span>
             {visible.length} of {objects.length} loaded object
             {objects.length === 1 ? "" : "s"} shown
+            {/* Folders leave the table when a filter cannot vouch for them, so
+                the count says where they went. Without it their absence reads
+                as the prefix having none. */}
+            {hiddenPrefixes > 0
+              ? `, ${hiddenPrefixes} folder${hiddenPrefixes === 1 ? "" : "s"} hidden by the filter`
+              : ""}
           </Span>
           {token ? (
             <Button
