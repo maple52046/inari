@@ -131,7 +131,7 @@ export function SettingsPage() {
             The session is stored in an encrypted, http-only cookie. The secret
             is never readable by scripts in your browser.
           </Text>
-          <Stack mt="4" align="flex-start">
+          <Stack mt="4" align="flex-end">
             <DisconnectButton />
           </Stack>
         </CardContent>

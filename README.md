@@ -2,47 +2,55 @@
 
 Manage S3-compatible object storage.
 
-Inari 是一個 standalone Web 服務，用於管理 S3-compatible object storage。核心
-功能使用標準 S3 API，避免綁定特定 provider；MinIO 相關能力保留為未來 plugin
-擴充。
+Inari is a standalone web service for managing S3-compatible object storage. It
+is built on the standard S3 API so it is not tied to one provider; MinIO-specific
+capabilities are reserved for future plugin extensions.
 
-Server 以 Rust + Axum 實作，前端是 React SPA，兩者編譯成**單一 executable**：
-production 不需要安裝 Node.js、npm 或 container runtime。
+The server is Rust + Axum and the frontend is a React SPA, compiled together into
+a **single executable**: production needs no Node.js, no npm, and no container
+runtime.
 
-**所有 S3 操作都在 server 端執行。** Browser 從不持有 access key，也不直接用
-credentials 呼叫 S3 API。
+**Every S3 operation runs on the server.** The browser never holds an access key
+and never calls the S3 API with credentials.
 
-## 功能
+> Also available in [繁體中文](README.zh-TW.md).
 
-- 以只有 server 能解密的 sealed cookie session 保存 S3 連線資訊，Secret 不寫入
-  browser `localStorage`。
-- 列出 buckets、prefixes 與 objects。
-- Object browser 支援 prefix navigation、pagination、size/date filter、
-  sort、multi-select 與 batch delete。
-- Object move / rename，跨 bucket 亦可；超過 5 GiB 的來源自動改走 multipart
-  copy。
-- Cleanup Planner (`/cleanup`) 可跨 bucket 掃描候選清理檔案，依
-  `lastModified ASC, size DESC, bucket ASC, key ASC` 排序，預估可釋放空間，
-  並在確認後依 bucket 分組刪除。
-- Bucket 首頁 (`/buckets`) 內建 usage 掃描，以 S3 list scan 估算 bucket/object
-  usage，並以圓餅圖呈現各 bucket 佔比。預設一律手動觸發，結果存於
-  `sessionStorage`，關閉 tab 即清除。
-- 選配的 **shared capacity index**（`INARI_CAPACITY_INDEX=shared`）：由 server
-  以一組唯讀 scanner key 維護一份跨 session 共享的容量索引。登入即看到既有數字，
-  超過 TTL 的數字先呈現再於背後重新量測，刪除／搬移後自動重掃受影響的路徑。
-  詳見 [shared capacity index](#shared-capacity-index)。
-- Dark theme 預設，支援 light/system theme。
-- Responsive UI 與 lucide icons。
+## Features
 
-## 技術棧
+- Connection details live in a sealed cookie session only the server can
+  decrypt. Secrets never reach the browser's `localStorage`.
+- List buckets, prefixes and objects.
+- Object browser with prefix navigation, pagination, size and date filters,
+  sorting, multi-select and batch delete.
+- Object move and rename, across buckets too; sources over 5 GiB switch to a
+  multipart copy automatically.
+- Cleanup Planner (`/cleanup`) scans for cleanup candidates across buckets,
+  ranks them by `lastModified ASC, size DESC, bucket ASC, key ASC`, estimates
+  what they would free, and deletes them grouped per bucket once confirmed.
+- The bucket page (`/buckets`) estimates bucket and object usage from an S3 list
+  scan and shows each bucket's share as a pie chart. By default a scan is always
+  started by hand and its result lives in `sessionStorage`, so closing the tab
+  discards it.
+- An optional **shared capacity index** (`INARI_CAPACITY_INDEX=shared`): the
+  server maintains one capacity index for every session using a read-only
+  scanner key. Figures are there on arrival, anything past its freshness
+  threshold is served immediately and re-measured behind the response, and a
+  delete or move re-scans the paths it affected. See
+  [shared capacity index](#shared-capacity-index).
+- Dark theme by default, with light and system modes.
+- Responsive UI with lucide icons.
+
+## Tech stack
 
 ### Server
 
 - Rust + [Axum](https://github.com/tokio-rs/axum)
 - AWS SDK for Rust (`aws-sdk-s3`)
-- `rustls` + `rustls-native-certs`（使用 OS trust store，無 OpenSSL 相依）
-- 以 AES-256-GCM 加密的 session cookie，金鑰由 `SESSION_SECRET` 經 HKDF 導出
-- `ts-rs` 由 Rust 型別產生 TypeScript wire types，避免前後端漂移
+- `rustls` + `rustls-native-certs` (uses the OS trust store; no OpenSSL
+  dependency)
+- Session cookie sealed with AES-256-GCM, keyed by HKDF from `SESSION_SECRET`
+- `ts-rs` generates the TypeScript wire types from the Rust types, so the two
+  sides of the boundary cannot drift
 
 ### Web
 
@@ -53,80 +61,85 @@ credentials 呼叫 S3 API。
 - Vite
 - Vitest
 
-## 架構
+## Architecture
 
-專案遵循 Clean Architecture dependency rule，dependency 一律向內：
+The project follows the Clean Architecture dependency rule: dependencies point
+inwards only.
 
 ```text
 server/src/
-  domain/          # entities、value objects、port traits；無 I/O
-  application/     # use cases，只依賴 domain 與其 ports
-  adapters/        # s3 / session / http，實作 ports
-  infrastructure/  # config、runtime、embedded assets
+  domain/          # entities, value objects, port traits; no I/O
+  application/     # use cases, depending only on domain and its ports
+  adapters/        # s3 / session / http, implementing the ports
+  infrastructure/  # config, runtime, embedded assets
   main.rs          # composition root
 
 web/src/
-  api/             # 與 server 對話的唯一位置（含 date revival）
-  app/             # routes、session context、pages
+  api/             # the only place that talks to the server (incl. date revival)
+  app/             # routes, session context, pages
   components/      # UI components
-  domain/          # 共用型別
+  domain/          # shared types
   lib/             # pure utilities
   theme/           # Chakra design tokens
 ```
 
-前端只透過 `web/src/api` 呼叫 server，不直接接觸任何 S3 SDK。
+The frontend reaches the server only through `web/src/api` and never touches an
+S3 SDK directly.
 
-## 本機開發
+## Local development
 
-需求：
+Requirements:
 
 - Rust 1.96+
 - Node.js 24+
-- 選用：[`just`](https://github.com/casey/just)、`watchexec`
+- Optional: [`just`](https://github.com/casey/just), `watchexec`
 
-建立本機環境檔：
+Create a local environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-至少設定 `SESSION_SECRET`（至少 32 字元）。
+Set at least `SESSION_SECRET` (32 characters or more).
 
-啟動：
-
-```bash
-just dev          # Rust API + Vite（含 HMR）
-```
-
-開啟 <http://localhost:5173>。Vite 會把 `/api` proxy 到 Rust server，因此
-browser 只看到單一 origin，session cookie 的行為與 production 完全一致。
-
-不使用 `just` 時：
+Start it:
 
 ```bash
-cd server && cargo run          # API，預設 :3000
-cd web && npm run dev           # SPA，:5173
+just dev          # Rust API + Vite, with HMR
 ```
 
-Debug build 的 server 會在 request 時從 `web/dist` 讀取前端資源，所以重新
-build 前端後不需要重啟 server。
+Open <http://localhost:5173>. Vite proxies `/api` to the Rust server, so the
+browser sees a single origin and the session cookie behaves exactly as it will
+in production.
 
-### 內部 CA / TLS
+Without `just`:
 
-Server 使用 OS trust store 驗證 S3 endpoint 憑證。若使用公司內部 CA，安裝進
-系統信任庫即可：
+```bash
+cd server && cargo run          # API, :3000 by default
+cd web && npm run dev           # SPA, :5173
+```
+
+A debug build reads the frontend from `web/dist` per request, so rebuilding the
+frontend does not require restarting the server.
+
+### Internal CA / TLS
+
+The server verifies S3 endpoint certificates against the OS trust store. For an
+internal corporate CA, installing it into the system store is enough:
 
 ```bash
 sudo cp your-ca.pem /usr/local/share/ca-certificates/your-ca.crt
 sudo update-ca-certificates
 ```
 
-不想動系統信任庫時，用 `INARI_EXTRA_CA_CERTS` 指向單一 PEM 即可；該憑證會
-**附加**到平台既有的 roots，不會取代它們。檔案不存在或格式錯誤會在啟動時失敗，
-而不是在每個 request 才冒出難解的 TLS 錯誤。
+To trust a single PEM without touching the system store, point
+`INARI_EXTRA_CA_CERTS` at it. That certificate is **added** to the platform
+roots rather than replacing them, so public endpoints keep working. A missing or
+malformed file fails at start-up rather than surfacing as a cryptic TLS error on
+every request.
 
-`/connect` 頁面另有「skip TLS verification」選項，但那會讓連線失去身分驗證
-保證，只應作為最後手段。
+The `/connect` page also offers to skip TLS verification, but that gives up the
+connection's identity guarantee and should be a last resort.
 
 ## Commands
 
@@ -134,10 +147,10 @@ sudo update-ca-certificates
 just dev          # API + Vite dev server
 just test         # cargo test + vitest
 just lint         # cargo fmt/clippy + eslint + tsc
-just build        # debug build（前後端）
-just release      # production build，前端資源嵌入 binary
-just bindings     # 重新產生 web/src/api/types.ts
-just minio-up     # 起一個測試用 MinIO 在 :9100
+just build        # debug build, both sides
+just release      # production build, frontend embedded in the binary
+just bindings     # regenerate web/src/api/types.ts
+just minio-up     # start a throwaway MinIO on :9100
 ```
 
 ## Production build
@@ -146,26 +159,27 @@ just minio-up     # 起一個測試用 MinIO 在 :9100
 just release
 ```
 
-產物是單一 executable，前端資源已嵌入其中：
+The result is a single executable with the frontend embedded:
 
 ```bash
 cd server && SESSION_SECRET=<at-least-32-characters> ./target/release/inari-server
 ```
 
-Idle RSS 約 14 MiB，執行 exhaustive bucket scan 時維持持平——listing 一律
-分頁，cleanup scan 只保留最終會回傳的候選。
+Idle RSS is around 14 MiB and stays flat through an exhaustive bucket scan:
+listings are always paginated, and the cleanup scan keeps only the candidates it
+will return.
 
 ## Docker image
 
-Multi-stage build，final stage 為 `scratch`，只含 binary 與 CA bundle
-（約 10 MB）：
+A multi-stage build whose final stage is `scratch`, holding only the binary and
+a CA bundle (about 10 MB):
 
 ```bash
 ts=$(date +%Y%m%d-%H%M%S)
 docker build --build-arg VERSION="$ts" -t "ghcr.io/maple52046/inari:$ts" .
 ```
 
-執行：
+Run it:
 
 ```bash
 docker run -d -p 3000:3000 \
@@ -174,47 +188,52 @@ docker run -d -p 3000:3000 \
   "ghcr.io/maple52046/inari:$ts"
 ```
 
-要信任內部 CA，掛載 PEM 並指向它。該憑證是**附加**到 image 內建的 public
-bundle，不是取代它，所以連線到 public endpoint 仍然正常：
+To trust an internal CA, mount the PEM and point at it. The certificate is
+**added** to the public bundle inside the image rather than replacing it, so
+public endpoints still work:
 
 ```bash
 -v /path/to/ca.crt:/etc/inari-ca/ca.crt:ro \
 -e INARI_EXTRA_CA_CERTS=/etc/inari-ca/ca.crt
 ```
 
-Container 不需要寫入權限，可以搭配 `readOnlyRootFilesystem: true` 與
-non-root user 執行。
+The container needs no write access and runs happily with
+`readOnlyRootFilesystem: true` and a non-root user.
 
-## Debian / Ubuntu 套件
+## Debian / Ubuntu package
 
-不使用 container 時，建議走 `.deb`：
+Without a container, the `.deb` is the recommended route:
 
 ```bash
-just deb                              # 產生 dist/inari_<version>_<arch>.deb
-sudo apt install ./dist/inari_0.2.0_amd64.deb
+just deb                                        # builds dist/inari_<version>_<arch>.deb
+sudo apt install ./dist/inari_<version>_amd64.deb
 ```
 
-安裝內容：binary 到 `/usr/bin/inari-server`、設定到 `/etc/inari/config.env`
-（dpkg conffile，升級不會覆蓋）、systemd unit，以及一份在安裝時產生、每台主機
-唯一的 `/etc/inari/secret.env`。
+It installs the binary at `/usr/bin/inari-server`, the configuration at
+`/etc/inari/config.env` (a dpkg conffile, so an upgrade will not overwrite your
+edits), a systemd unit, and an `/etc/inari/secret.env` generated at install time
+and unique to that host.
 
-**安裝後不會自動啟動**，因為此時還沒設定 endpoint。流程是：
+**The service does not start on install**, because no endpoint is configured
+yet. The flow is:
 
 ```bash
-sudo vi /etc/inari/config.env         # 至少設定 DEFAULT_S3_ENDPOINT
+sudo vi /etc/inari/config.env         # at minimum, set DEFAULT_S3_ENDPOINT
 sudo systemctl enable --now inari
 systemctl status inari && curl -sf localhost:3000/healthz
 ```
 
-預設綁 `127.0.0.1:3000` 並使用純 HTTP，前面要自行架 TLS reverse proxy，套件
-刻意不代為設定；範例見 [`deploy/nginx.example.conf`](deploy/nginx.example.conf)。
+It binds `127.0.0.1:3000` and speaks plain HTTP, so a TLS-terminating reverse
+proxy belongs in front of it. The package deliberately does not configure one;
+see [`deploy/nginx.example.conf`](deploy/nginx.example.conf) for an example.
 
-`apt remove` 會停掉服務並保留 `/etc/inari`；`apt purge` 連設定與 secret 一併
-移除。細節見 [`debian/README.Debian`](debian/README.Debian)。
+`apt remove` stops the service and keeps `/etc/inari`; `apt purge` also removes
+the configuration and the generated secret. Details in
+[`debian/README.Debian`](debian/README.Debian).
 
 ## Kubernetes
 
-Manifests 與說明在 [`deploy/k8s/`](deploy/k8s/)。快速部署：
+Manifests and notes are in [`deploy/k8s/`](deploy/k8s/). A quick deployment:
 
 ```bash
 kubectl apply -f deploy/k8s/namespace.yaml
@@ -225,75 +244,87 @@ kubectl apply -f deploy/k8s/service-nodeport.yaml
 kubectl -n inari rollout status deploy/inari
 ```
 
-## 環境變數
+## Environment variables
 
-| Name                       | Required | Description                                                        |
-| -------------------------- | -------- | ------------------------------------------------------------------ |
-| `SESSION_SECRET`           | Yes      | Sealing session cookie 的秘密，至少 32 字元。                      |
-| `HOST` / `PORT`            | No       | 綁定位址，預設 `0.0.0.0:3000`。                                    |
-| `INARI_ENV`                | No       | `development` 會放寬 cookie Secure 預設並允許 Vite origin。        |
-| `DEFAULT_S3_ENDPOINT`      | No       | 連線目標 endpoint。                                                |
-| `DEFAULT_S3_REGION`        | No       | 連線目標 region，預設 `us-east-1`。                                |
-| `DEFAULT_S3_FORCE_PATH_STYLE` | No    | Path-style addressing，預設 `true`。                               |
-| `DEFAULT_S3_SKIP_TLS_VERIFICATION` | No | 跳過憑證驗證，預設 `false`。                                   |
-| `INARI_LOCK_CONNECTION`    | No       | 固定上述連線目標，使用者只提供憑證；server 端強制。                |
-| `BASE_PATH`                | No       | 整個 app 掛載的 URL 前綴，例如 `/dashboard`。                      |
-| `SESSION_COOKIE_SECURE`    | No       | 覆寫 cookie 的 `Secure` 屬性。                                     |
-| `INARI_EXTRA_CA_CERTS`     | No       | 額外信任的 CA PEM 路徑，附加於 OS trust store 之上。               |
-| `INARI_WORKER_THREADS`     | No       | Tokio worker 數；未設定時使用單執行緒 runtime。                    |
-| `INARI_REQUEST_BODY_LIMIT` | No       | 最大 request body，預設 1 MiB。                                    |
-| `RUST_LOG`                 | No       | Log filter，例如 `inari_server=debug`。                            |
+| Name                               | Required | Description                                                            |
+| ---------------------------------- | -------- | ---------------------------------------------------------------------- |
+| `SESSION_SECRET`                   | Yes      | Secret sealing the session cookie; at least 32 characters.             |
+| `HOST` / `PORT`                    | No       | Bind address; defaults to `0.0.0.0:3000`.                              |
+| `INARI_ENV`                        | No       | `development` relaxes the cookie Secure default and allows the Vite origin. |
+| `DEFAULT_S3_ENDPOINT`              | No       | Endpoint to connect to.                                                |
+| `DEFAULT_S3_REGION`                | No       | Region to sign with; defaults to `us-east-1`.                          |
+| `DEFAULT_S3_FORCE_PATH_STYLE`      | No       | Path-style addressing; defaults to `true`.                             |
+| `DEFAULT_S3_SKIP_TLS_VERIFICATION` | No       | Skip certificate verification; defaults to `false`.                    |
+| `INARI_LOCK_CONNECTION`            | No       | Pin the target above so users supply only credentials; enforced server-side. |
+| `BASE_PATH`                        | No       | URL prefix the whole app is mounted under, e.g. `/dashboard`.          |
+| `SESSION_COOKIE_SECURE`            | No       | Overrides the cookie's `Secure` attribute.                             |
+| `INARI_EXTRA_CA_CERTS`             | No       | Path to an extra CA PEM, added on top of the OS trust store.           |
+| `INARI_WORKER_THREADS`             | No       | Tokio worker count; unset runs the single-threaded runtime.            |
+| `INARI_REQUEST_BODY_LIMIT`         | No       | Largest accepted request body; defaults to 1 MiB.                      |
+| `RUST_LOG`                         | No       | Log filter, e.g. `inari_server=debug`.                                 |
+| `INARI_CAPACITY_INDEX`             | No       | `off` (default) or `shared`; see [shared capacity index](#shared-capacity-index). |
+| `INARI_SCANNER_ACCESS_KEY_ID` / `..._SECRET_ACCESS_KEY` | No | Scanner credentials, required by `shared`. Each accepts a `_FILE` variant. |
 
-## URL 前綴 (base path)
+The remaining `INARI_CAPACITY_*` ceilings are documented in
+[`.env.example`](.env.example).
 
-設定 `BASE_PATH` 後，SPA 與 API 都移到該前綴底下，reverse proxy 可以直接把帶
-前綴的 path 原樣轉發，不需要 rewrite。完整範例見
-[`deploy/nginx.example.conf`](deploy/nginx.example.conf)：
+## URL prefix (base path)
+
+With `BASE_PATH` set, both the SPA and the API move under that prefix, so a
+reverse proxy can forward the prefixed path unchanged with no rewriting. A full
+example is in [`deploy/nginx.example.conf`](deploy/nginx.example.conf):
 
 ```nginx
 location /dashboard/ {
-    # 結尾不加 "/"，原始路徑才會原樣送達；加了會被剝掉前綴而全部 404。
+    # No trailing "/": that would strip the prefix and 404 everything.
     proxy_pass http://127.0.0.1:3000;
 
-    # 必要：變更類 request 會比對 Origin 與 Host。轉發 nginx 自己的 upstream
-    # host 會讓每個 POST 都吃到 403。用 $http_host 而非 $host 以保留 port。
+    # Required: mutating requests compare Origin against Host. Forwarding
+    # nginx's own upstream host makes every POST fail with 403. Use $http_host
+    # rather than $host so the port is preserved.
     proxy_set_header Host $http_host;
 
-    # 必要：usage / cleanup 掃描可能跑數分鐘，nginx 預設 60s 會切成 504。
+    # Required: usage and cleanup scans can run for minutes, and nginx's
+    # 60-second default cuts them off as a 504.
     proxy_read_timeout 600s;
 }
 ```
 
-Inari 不讀 `X-Forwarded-*`，也從不組出指向自己的絕對 URL，所以「前面是 HTTPS、
-自己講 HTTP」不需要額外告知。但 **cookie 的 `Secure` 要維持開啟**：判斷依據是
-瀏覽器那一段連線，不是 nginx 到 Inari 那一段。
+Inari does not read `X-Forwarded-*` and never builds an absolute URL pointing at
+itself, so "HTTPS in front, HTTP behind" needs no extra signalling. But **keep
+the cookie's `Secure` attribute on**: what decides it is the browser's
+connection, not nginx's connection to Inari.
 
-前綴在**啟動時**套用：router 掛載到該前綴、cookie path 跟著縮限，並在
-`index.html` 注入對應的 `<base href>`，讓 bundle 內的相對資源路徑從掛載點解析。
-因此**同一份 build 可以跑在任何前綴底下**，不需要重新編譯，也不需要在啟動時
-改寫 build 產物。
+The prefix is applied **at start-up**: the router is mounted under it, the cookie
+path is scoped to it, and a matching `<base href>` is injected into `index.html`
+so the bundle's relative asset URLs resolve from the mount point. **One build
+therefore serves any prefix**, with no recompilation and no rewriting of build
+output at start-up.
 
-Health probe 刻意留在 root，不受前綴影響：
+Health probes deliberately stay at the root, outside the prefix:
 
 ```bash
-curl http://localhost:3000/healthz   # liveness，不呼叫 S3
+curl http://localhost:3000/healthz   # liveness, does not call S3
 curl http://localhost:3000/readyz    # readiness
 ```
 
-## 兩種佈署模式
+## Two deployment modes
 
-這個專案最初的目標是管理多個 S3 backend，所以 `/connect` 允許使用者自行輸入
-連線目標。那在內部開發、或使用者自行 clone 建置連自己的儲存時很方便，但放在
-公開主機上，等於讓任何能開啟連線頁的人指揮 server 對它連得到的任何位址發出
-請求並看到結果——包含你內網的主機。
+The project originally set out to manage several S3 backends, which is why
+`/connect` lets a user type in the connection target. That is convenient for
+internal development, or for someone who clones and builds it against their own
+storage. On a publicly reachable host it is something else: anyone who can open
+the connect screen can direct the server to any address it can reach and read
+the outcome — including hosts inside your network.
 
-因此提供兩種模式，差別只在一個旗標。
+Hence two modes, separated by a single flag.
 
-### 彈性模式（預設）
+### Flexible mode (default)
 
-`DEFAULT_S3_*` 只是連線頁的初始值，使用者可以改。適合內部 dev 與自行建置。
+`DEFAULT_S3_*` are merely the connect screen's starting values, and a user may
+change them. Suitable for internal development and self-built deployments.
 
-### 固定模式（正式環境建議）
+### Pinned mode (recommended for production)
 
 ```bash
 DEFAULT_S3_ENDPOINT=https://minio.internal
@@ -301,60 +332,77 @@ DEFAULT_S3_REGION=eu-west-2
 INARI_LOCK_CONNECTION=true
 ```
 
-連線目標完全由 operator 決定，**使用者只提供 access key 與 secret**。連線頁
-收合成兩個欄位，endpoint 以唯讀顯示，Advanced settings 整段消失。
+The operator decides the target outright and **users supply only an access key
+and secret**. The connect screen collapses to two fields, the endpoint is shown
+read-only, and the Advanced settings section disappears.
 
-**重點在 server 端。** endpoint、region、force path style、skip TLS
-verification 四項只要與設定不符一律以 400 拒絕，所以用 curl 繞過隱藏欄位沒有
-用。隱藏欄位只是呈現，真正的限制在後端。特別是 `skipTlsVerification`：既然
-operator 決定了要驗證憑證，使用者就不該有辦法替自己的 session 關掉它。
+**The enforcement is server-side.** Endpoint, region, force path style and skip
+TLS verification are each rejected with a 400 if they disagree with the
+configuration, so bypassing the hidden fields with curl achieves nothing. Hiding
+the fields is presentation; the constraint lives in the backend. This matters
+most for `skipTlsVerification`: the operator decided certificates are verified,
+so a user must not be able to turn that off for their own session.
 
-### 防呆
+### Guard rails
 
-`INARI_LOCK_CONNECTION` 必須與 `DEFAULT_S3_ENDPOINT` 成對出現，否則啟動失敗，
-而不是默默鎖到範例網址上。旗標值拼錯（例如 `ture`）同樣是啟動失敗，不會被當成
-關閉——安全開關若因打錯字而靜默失效，是最糟的失敗模式。
+`INARI_LOCK_CONNECTION` has to appear together with `DEFAULT_S3_ENDPOINT` or
+start-up fails, rather than quietly pinning the deployment to an example
+address. A misspelled flag value such as `ture` is also a start-up failure and
+is never read as "off" — a safety switch that silently fails open because of a
+typo is the worst failure mode available.
 
 ## Shared capacity index
 
-預設關閉。開啟後，server 會維護一份跨 session 共享的 prefix 容量索引，取代原本
-「每個瀏覽器分頁各自掃描、各自快取」的模式。
+Off by default. Once enabled, the server maintains one prefix capacity index
+shared across sessions, replacing the "every browser tab scans and caches for
+itself" model.
 
-啟用條件是結構性的，不只是政策：`INARI_CAPACITY_INDEX=shared` **要求**
-`INARI_LOCK_CONNECTION=true`。scanner key 只對單一 backend 有效，若使用者可以把
-server 指向任意 endpoint，共享索引就沒有一致的定義。兩者不一致時啟動即失敗。
+The precondition is structural rather than a matter of policy:
+`INARI_CAPACITY_INDEX=shared` **requires** `INARI_LOCK_CONNECTION=true`. A
+scanner key authenticates against exactly one backend, so if users can point the
+server at an arbitrary endpoint, a shared index has no coherent definition.
+Start-up fails when the two disagree.
 
-運作方式：
+How it works:
 
-- **索引**是記憶體中的 prefix 樹，每個節點持有其子樹的總量，因此任意層級的
-  rollup 是一次查表。它是可重建的快取而非事實來源，重啟後重掃即可，所以不需要
-  可寫入的 volume。
-- **刷新以需求驅動**。讀到過期的位置會立刻回傳既有數字並在背後排入重新量測，
-  前端輪詢等待結果。背景 sweep 的職責因此縮小為暖機與保溫。
-- **刪除／搬移**後會重掃受影響的最小路徑，而不是加減推算——批次刪除的回應並不
-  帶大小，推算等於相信呼叫端給的數字。
-- **成本上限**由 `INARI_CAPACITY_SCAN_RATE`（每秒 LIST 請求數）決定，這是唯一
-  能在 backend 規模未知時仍然有效的閘門。樹的大小另有深度與節點數上限；碰到上限
-  時失去的是解析度而非準確度——該位置仍被精確量測，只是不再往下細分。
+- **The index** is an in-memory prefix tree where each node holds its own
+  subtree's total, so a rollup at any level is a single lookup. It is a
+  rebuildable cache rather than a source of truth: a restart simply rescans, so
+  no writable volume is needed.
+- **Refresh is demand-driven.** Reading a location past its freshness threshold
+  returns the stored figures at once and queues a re-measurement behind the
+  response, which the frontend polls for. That narrows the background sweep's
+  job to warming the index and keeping it warm.
+- **A delete or move** re-scans the smallest path containing the change rather
+  than adjusting totals arithmetically — a batch delete's response does not
+  carry sizes, so arithmetic would mean trusting a figure the caller supplied.
+- **The cost ceiling** is `INARI_CAPACITY_SCAN_RATE`, in LIST requests per
+  second. It is the only limit that still holds when the backend's size is
+  unknown. The tree has depth and node ceilings of its own; reaching them costs
+  resolution, not accuracy — the location is still measured exactly, it simply
+  is not broken down further.
 
-安全上的取捨：
+Security trade-offs:
 
-- scanner key **必須是 list-only**（`s3:ListBucket` 與 `s3:ListAllMyBuckets`），
-  **不要給 `s3:GetObject`**。這樣即使 server 被攻陷，洩漏的是 key 名稱與大小，
-  不是物件內容。
-- 這推翻了原本「server 不持有任何憑證」的設計。scanner 憑證有自己的型別，不與
-  session 的 `S3Connection` 共用，因此不可能被誤用於服務某個使用者的請求。
-- API **在 handler 層**用呼叫者自己的憑證過濾可見的 bucket，不在 React 元件層——
-  瀏覽器可以直接打 API，元件隱藏列不構成邊界。
-- bucket 層級的過濾看不見 prefix-scoped 的 IAM policy。若部署中有這類 policy，
-  開啟 `INARI_CAPACITY_VERIFY_PREFIX_ACCESS`，回應前會用呼叫者的憑證探測該
-  prefix。
+- The scanner key **must be list-only** (`s3:ListBucket` and
+  `s3:ListAllMyBuckets`) and **must not** be granted `s3:GetObject`. A
+  compromised server then leaks key names and sizes, not object contents.
+- This overturns the original property that the server holds no credentials of
+  its own. The scanner credentials have their own type, distinct from a
+  session's `S3Connection`, so they cannot be misused to serve a user's request.
+- The API filters visible buckets **in the handler**, using the caller's own
+  credentials, not in a React component — the browser can call the API directly,
+  so a component hiding rows is no boundary at all.
+- Bucket-level filtering cannot see prefix-scoped IAM policies. Where a
+  deployment uses them, enable `INARI_CAPACITY_VERIFY_PREFIX_ACCESS` and the
+  prefix is probed with the caller's credentials before it is answered.
 
-### Scanner key 的 policy
+### Scanner key policy
 
-Scanner 只會呼叫兩個 S3 動作：`ListBuckets`（決定要掃哪些 bucket）與
-`ListObjectsV2`（實際量測）。因此權限只需要這兩項，用萬用字元涵蓋所有 bucket，
-新增 bucket 時不必回來改 policy：
+The scanner calls exactly two S3 actions: `ListBuckets`, to decide which buckets
+to walk, and `ListObjectsV2`, to measure them. So it needs only those two, and a
+wildcard covers every bucket, meaning a new bucket never requires revisiting the
+policy:
 
 ```json
 {
@@ -376,29 +424,35 @@ Scanner 只會呼叫兩個 S3 動作：`ListBuckets`（決定要掃哪些 bucket
 }
 ```
 
-第二段是刻意加的。單靠「不授予」`s3:GetObject` 已經足夠，但明確 Deny 讓
-「scanner 永遠讀不到物件內容」變成即使日後有人把這把 key 加進別的 group 或
-policy 也推翻不了的性質——Deny 在 IAM 中優先於任何 Allow。
+The second statement is deliberate. Simply not granting `s3:GetObject` would be
+enough, but an explicit Deny makes "the scanner can never read object contents"
+a property nobody can overturn later by adding this key to another group or
+policy — in IAM, Deny beats any Allow.
 
-一個容易踩的陷阱：`s3:ListBucket` 的資源是 **bucket** 的 ARN
-（`arn:aws:s3:::*`），不是物件的 ARN（`arn:aws:s3:::*/*`）。寫成後者不會報錯，
-只會讓每次掃描都收到 `AccessDenied`。
+One easy trap: `s3:ListBucket`'s resource is the **bucket** ARN
+(`arn:aws:s3:::*`), not the object ARN (`arn:aws:s3:::*/*`). Writing the latter
+raises no error; it simply makes every scan come back `AccessDenied`.
 
-完整設定項見 [`.env.example`](.env.example)。
+Every setting is documented in [`.env.example`](.env.example).
 
-## 安全注意事項
+## Security notes
 
-- S3 Secret 只保存在 sealed cookie session（`HttpOnly`、`SameSite=Lax`，以
-  `SESSION_SECRET` 導出的金鑰加密），不寫入 DB，也不寫入 browser 可讀取的
-  storage。
-- 所有 S3 操作在 server 端執行；browser 只透過 JSON API 取得結果。
-- 變更類 request 會檢查 `Origin`，搭配 `SameSite=Lax` 阻擋跨站提交。
-- `.env` 被 `.gitignore` 忽略，不要提交真實 secrets。
-- Error response 只帶穩定的 error code 與安全訊息；SDK 細節只進 log。
-- Delete action 一律需要使用者確認並輸入 `DELETE`。
-- Cleanup Planner 會先產生 candidates 與可釋放空間估算，不會自動刪除。
-- Usage 與 Cleanup 都基於標準 S3 list API scan，可能不包含 provider-specific
-  overhead、object versions、delete markers 或 incomplete multipart uploads。
+- S3 secrets live only in the sealed cookie session (`HttpOnly`,
+  `SameSite=Lax`, encrypted with a key derived from `SESSION_SECRET`). They are
+  written to no database and to no browser-readable storage.
+- Every S3 operation runs on the server; the browser only receives results
+  through the JSON API.
+- Mutating requests check `Origin`, which together with `SameSite=Lax` blocks
+  cross-site submission.
+- `.env` is git-ignored. Do not commit real secrets.
+- Error responses carry only a stable code and a safe message; SDK detail goes
+  to the logs alone.
+- Delete actions always require confirmation and typing `DELETE`.
+- The Cleanup Planner produces candidates and an estimate of what they would
+  free; it never deletes on its own.
+- Usage and Cleanup are both based on standard S3 list scans, so they may
+  exclude provider-specific overhead, object versions, delete markers and
+  incomplete multipart uploads.
 
 ## License
 

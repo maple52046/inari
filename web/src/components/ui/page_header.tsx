@@ -23,7 +23,9 @@ export function PageHeader({
       align={{ base: "stretch", sm: "center" }}
       gap="3"
     >
-      <Stack gap="1">
+      {/* Claims the row rather than sitting at its natural width, so a
+          description can align something against the far edge of the page. */}
+      <Stack gap="1" flex="1" minW="0">
         <Heading
           as="h1"
           fontFamily="heading"
@@ -34,7 +36,9 @@ export function PageHeader({
           {title}
         </Heading>
         {description ? (
-          <Text color="fg.muted" fontSize="sm">
+          // A div, not the default paragraph: a description may be a laid-out
+          // node, and a <p> cannot legally contain one.
+          <Text as="div" color="fg.muted" fontSize="sm">
             {description}
           </Text>
         ) : null}

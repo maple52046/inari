@@ -26,8 +26,7 @@ import { formatDateTime } from "@/lib/date";
 import { formatSize } from "@/lib/format_size";
 import { formatShare, toUsageByBucket } from "@/lib/usage_slices";
 import type { BucketUsage } from "@/lib/usage_slices";
-import type { UsageCacheStamp } from "@/lib/usage_cache";
-import { useBucketScan } from "./use_bucket_scan";
+import type { BucketScan } from "./use_bucket_scan";
 // Loaded on demand so the charting library stays out of the bucket homepage's
 // bundle. The page is the app's entry point and the chart is supplementary, so
 // paying ~320KB up front on every visit would be wasteful.
@@ -116,13 +115,16 @@ function UsageFooter({
  * One component rather than a list beside a usage panel, because the two
  * interleave: the control sits on the search row and the chart beside the grid.
  * Splitting them would mean a layout that neither could own.
+ *
+ * The scan itself is passed in rather than started here, because the page
+ * header reports the same total and both must move together.
  */
 export function BucketList({
   buckets,
-  cacheStamp,
+  scan,
 }: {
   buckets: BucketSummary[];
-  cacheStamp: UsageCacheStamp;
+  scan: BucketScan;
 }) {
   const [nameFilter, setNameFilter] = useState("");
   // Narrows a list that is already complete: the bucket listing arrives in one
@@ -137,35 +139,32 @@ export function BucketList({
     );
   }, [buckets, nameFilter]);
 
-  const bucketNames = useMemo(
-    () => buckets.map((bucket) => bucket.name),
-    [buckets],
-  );
-  const scan = useBucketScan(bucketNames, cacheStamp);
-
   const usageByBucket = useMemo(
     () => toUsageByBucket(scan.scopes),
     [scan.scopes],
   );
 
+  // The usage card carries the figures and the caveat that qualifies them, so
+  // it appears whenever there are figures at all.
   const hasResults = scan.scopes.length > 0;
-  // A pie of nothing but zero-byte buckets has no slices, so the column would
-  // otherwise reserve space for an empty card.
+  // A pie of nothing but zero-byte buckets has no slices to draw. The card
+  // still belongs there, because those zeroes are exactly what the caveat
+  // explains: an incomplete multipart upload holds bytes a list scan cannot see.
   const hasChart = scan.scopes.some((scope) => scope.totalSize > 0);
 
   // `minmax(0, ...)` rather than `1fr`, so a long bucket name cannot widen the
   // first column and push what follows off the row.
   const contentColumns = {
     base: "1fr",
-    xl: hasChart ? `minmax(0, 1fr) ${CHART_COLUMN}` : "1fr",
+    xl: hasResults ? `minmax(0, 1fr) ${CHART_COLUMN}` : "1fr",
   };
   // Tracks the content below wherever there is a split to track. Narrower than
-  // xl the chart sits under the grid, so there is nothing to line up with and
+  // xl the card sits under the grid, so there is nothing to line up with and
   // the button falls back to its own width.
   const toolbarColumns = {
     base: "1fr",
     md: "minmax(0, 1fr) auto",
-    xl: hasChart ? `minmax(0, 1fr) ${CHART_COLUMN}` : "minmax(0, 1fr) auto",
+    xl: hasResults ? `minmax(0, 1fr) ${CHART_COLUMN}` : "minmax(0, 1fr) auto",
   };
 
   return (
@@ -229,19 +228,6 @@ export function BucketList({
         <Alert variant="error">
           Failed to scan:{" "}
           {scan.failures.map((failure) => failure.bucket).join(", ")}
-        </Alert>
-      ) : null}
-
-      {/* The estimate has to be qualified wherever it is shown, but with no
-          figure on screen there is nothing to qualify. */}
-      {hasResults ? (
-        <Alert variant="warning">
-          <Text>
-            Usage is calculated by scanning visible objects through
-            S3-compatible APIs. It may not include provider-specific overhead,
-            incomplete multipart uploads, object versions, delete markers, or
-            backend internal metadata.
-          </Text>
         </Alert>
       ) : null}
 
@@ -313,14 +299,32 @@ export function BucketList({
           </SimpleGrid>
         )}
 
-        {hasChart ? (
+        {hasResults ? (
           <Card>
-            <Box p="4">
-              {/* The fallback reserves the chart's height so the card does not
-                  collapse and reflow while the bundle arrives. */}
-              <Suspense fallback={<Box height="17rem" />}>
-                <UsagePieChart scopes={scan.scopes} />
-              </Suspense>
+            {hasChart ? (
+              <Box p="4">
+                {/* The fallback reserves the chart's height so the card does
+                    not collapse and reflow while the bundle arrives. */}
+                <Suspense fallback={<Box height="17rem" />}>
+                  <UsagePieChart scopes={scan.scopes} />
+                </Suspense>
+              </Box>
+            ) : null}
+            {/* The caveat rides with the figures it qualifies rather than
+                standing between the toolbar and the grid, which cost the page a
+                full-width row for a sentence that belongs to this card. */}
+            <Box
+              borderTopWidth={hasChart ? "1px" : undefined}
+              borderColor="border"
+              px="4"
+              py="3"
+            >
+              <Text fontSize="xs" color="fg.muted">
+                Usage is calculated by scanning visible objects through
+                S3-compatible APIs. It may not include provider-specific
+                overhead, incomplete multipart uploads, object versions, delete
+                markers, or backend internal metadata.
+              </Text>
             </Box>
           </Card>
         ) : null}

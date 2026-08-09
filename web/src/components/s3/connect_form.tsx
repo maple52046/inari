@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
-import { ChevronDown, Plug, Wifi } from "lucide-react";
-import { Box, Checkbox, Field, Icon, Stack, Text } from "@chakra-ui/react";
+import { ChevronDown, Eye, EyeOff, Plug, Wifi } from "lucide-react";
+import {
+  Box,
+  Checkbox,
+  Field,
+  Icon,
+  IconButton,
+  InputGroup,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
@@ -35,6 +44,22 @@ export function ConnectForm({
     INITIAL_CONNECT_STATE,
   );
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [secretVisible, setSecretVisible] = useState(false);
+
+  // Controlled rather than left to the DOM, because a form action resets every
+  // uncontrolled field once it settles. A rejected attempt would otherwise wipe
+  // the credentials the user just typed, which is the moment they least want to
+  // retype a forty-character secret.
+  const [endpoint, setEndpoint] = useState(connection.endpoint);
+  const [accessKeyId, setAccessKeyId] = useState("");
+  const [secretAccessKey, setSecretAccessKey] = useState("");
+  const [region, setRegion] = useState(connection.region);
+  const [forcePathStyle, setForcePathStyle] = useState(
+    connection.forcePathStyle,
+  );
+  const [skipTlsVerification, setSkipTlsVerification] = useState(
+    connection.skipTlsVerification,
+  );
 
   const fieldErrors = {
     ...testState.fieldErrors,
@@ -92,7 +117,8 @@ export function ConnectForm({
               name="endpoint"
               type="url"
               autoComplete="off"
-              defaultValue={connection.endpoint}
+              value={endpoint}
+              onChange={(event) => setEndpoint(event.target.value)}
               placeholder="https://s3.example.com"
             />
             <Field.ErrorText>{fieldErrors.endpoint}</Field.ErrorText>
@@ -105,6 +131,8 @@ export function ConnectForm({
             id="accessKeyId"
             name="accessKeyId"
             autoComplete="off"
+            value={accessKeyId}
+            onChange={(event) => setAccessKeyId(event.target.value)}
             placeholder="AKIA…"
           />
           <Field.ErrorText>{fieldErrors.accessKeyId}</Field.ErrorText>
@@ -112,13 +140,39 @@ export function ConnectForm({
 
         <Field.Root invalid={Boolean(fieldErrors.secretAccessKey)}>
           <Field.Label>Secret Access Key</Field.Label>
-          <Input
-            id="secretAccessKey"
-            name="secretAccessKey"
-            type="password"
-            autoComplete="off"
-            placeholder="••••••••••••"
-          />
+          {/* Masked by default: the field is filled with a credential, often
+              with someone else at the desk. Revealing it is a deliberate act,
+              usually to check a paste that failed to connect. */}
+          <InputGroup
+            endElement={
+              <IconButton
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => setSecretVisible((visible) => !visible)}
+                aria-label={
+                  secretVisible
+                    ? "Hide the secret access key"
+                    : "Show the secret access key"
+                }
+                aria-pressed={secretVisible}
+              >
+                <Icon size="sm" color="fg.muted" asChild>
+                  {secretVisible ? <EyeOff /> : <Eye />}
+                </Icon>
+              </IconButton>
+            }
+          >
+            <Input
+              id="secretAccessKey"
+              name="secretAccessKey"
+              type={secretVisible ? "text" : "password"}
+              autoComplete="off"
+              value={secretAccessKey}
+              onChange={(event) => setSecretAccessKey(event.target.value)}
+              placeholder="••••••••••••"
+            />
+          </InputGroup>
           <Field.ErrorText>{fieldErrors.secretAccessKey}</Field.ErrorText>
         </Field.Root>
 
@@ -166,13 +220,17 @@ export function ConnectForm({
                   <Input
                     id="region"
                     name="region"
-                    defaultValue={connection.region}
+                    value={region}
+                    onChange={(event) => setRegion(event.target.value)}
                   />
                 </Field.Root>
 
                 <Checkbox.Root
                   name="forcePathStyle"
-                  defaultChecked={connection.forcePathStyle}
+                  checked={forcePathStyle}
+                  onCheckedChange={(details) =>
+                    setForcePathStyle(details.checked === true)
+                  }
                   size="sm"
                 >
                   <Checkbox.HiddenInput />
@@ -184,7 +242,10 @@ export function ConnectForm({
 
                 <Checkbox.Root
                   name="skipTlsVerification"
-                  defaultChecked={connection.skipTlsVerification}
+                  checked={skipTlsVerification}
+                  onCheckedChange={(details) =>
+                    setSkipTlsVerification(details.checked === true)
+                  }
                   size="sm"
                   alignItems="flex-start"
                 >
